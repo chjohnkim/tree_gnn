@@ -1,0 +1,25 @@
+# used to create the object
+name: TreeGNN
+device: cuda
+data_root: "data"
+test_data_name:  [
+                  #"graph_list_11_nodes_2k.pkl",
+                  #"graph_list_13_nodes_2k.pkl",
+                  #"graph_list_15_nodes_2k.pkl",
+                  #"graph_list_17_nodes_2k.pkl",
+                  #"graph_list_19_nodes_2k.pkl",
+                  "graph_list_8_nodes_2k.pkl",
+                  "graph_list_9_nodes_2k.pkl",
+                  "graph_list_21_nodes_2k.pkl",
+                  "graph_list_22_nodes_2k.pkl",
+                  #"graph_list_10_nodes_2k.pkl",
+                  #"graph_list_12_nodes_2k.pkl",
+                  #"graph_list_14_nodes_2k.pkl",
+                  #"graph_list_16_nodes_2k.pkl",
+                  #"graph_list_18_nodes_2k.pkl",
+                  #"graph_list_20_nodes_2k.pkl",
+                  ]
+checkpoint_path: "runs/TreeGNN_20230807_203351/best_model.pt"
+test:
+  batch_size: 128
+  visualize: False
