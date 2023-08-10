@@ -9,14 +9,25 @@ import matplotlib.pyplot as plt
 def test(model, criterion, data_loader, device):
     model.eval()
     running_loss = 0
+    max_distance_errors = []
     with torch.no_grad():
         for num_batch, batch in enumerate(data_loader):
             batch.to(device)
             out = model(batch)
-            loss = criterion(batch.initial_position+out, batch.final_position)
+            prediction = batch.initial_position+out
+            ground_truth = batch.final_position
+            loss = criterion(prediction, ground_truth)
             running_loss += loss.item()
+
+            # Metric: Maximum node distance error per tree
+            distance_error = torch.norm(prediction-ground_truth, dim=-1)
+            max_distance_error = torch.stack([torch.max(distance_error[batch.batch==i]) for i in range(batch.num_graphs)])
+            max_distance_errors.append(max_distance_error)
         test_loss = running_loss/len(data_loader)
-    return test_loss
+    max_distance_errors = torch.cat(max_distance_errors)
+    max_distance_error_mean = max_distance_errors.mean()
+    max_distance_error_std = max_distance_errors.std()
+    return test_loss, max_distance_error_mean, max_distance_error_std
 
 def visualize(model, data_loader, device):
     model.eval()
@@ -66,7 +77,7 @@ if __name__ == '__main__':
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
         test_graph_list += test_graphs
-    test_graph_list = utils.to_fully_connected(test_graph_list)
+    test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
     test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=cfg.test.batch_size, shuffle=True)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -75,8 +86,10 @@ if __name__ == '__main__':
     # load checkpoint
     model.load_state_dict(torch.load(cfg.checkpoint_path))
     criterion = torch.nn.MSELoss()
-    test_loss = test(model, criterion, test_loader, device)
+    test_loss, max_distance_error_mean, max_distance_error_std = test(model, criterion, test_loader, device)
     print(f'Test loss: {test_loss}')
+    print(f'Max distance error mean: {max_distance_error_mean}')
+    print(f'Max distance error std: {max_distance_error_std}')
     if cfg.test.visualize:
         test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=1, shuffle=True)
         visualize(model, test_loader, device)        

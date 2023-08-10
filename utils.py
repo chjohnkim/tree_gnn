@@ -5,6 +5,7 @@ from torch_geometric.loader import DataLoader
 import numpy as np 
 from tqdm.contrib import tzip
 from tqdm import tqdm
+
 def parse_urdf_graph(urdf_path):
     '''
     JOHN:
@@ -21,7 +22,6 @@ def parse_urdf_graph(urdf_path):
             parent_node_idx = link.name.split('_')[1]
             child_node_idx = link.name.split('_')[3]
             edge_list.append([parent_node_idx, child_node_idx])   
-            #edge_list.append([child_node_idx, parent_node_idx])   
             
     DiG = nx.DiGraph()
     DiG.add_edges_from(edge_list)
@@ -34,6 +34,22 @@ def nx_to_pyg_dataloader(graph_list, batch_size, shuffle=True):
         pyg_list.append(g)
     data_loader = DataLoader(pyg_list, batch_size=batch_size, shuffle=shuffle)
     return data_loader
+
+def tensor_to_nx(node_pos, edge_index):
+    '''
+    Converts node_pos and edge_index to networkx DiGraph object
+    '''
+    edge_list = []
+    for edge in edge_index:
+        edge_list.append((edge[0], edge[1]))
+    DiG = nx.DiGraph()
+    DiG.add_edges_from(edge_list)
+    for i, node in enumerate(node_pos):
+        DiG.nodes[i]['position'] = node
+    # Add edge length to edges
+    for edge in DiG.edges:
+        DiG.edges[edge]['length'] = np.linalg.norm(DiG.nodes[edge[1]]['position'] - DiG.nodes[edge[0]]['position'])
+    return DiG
 
 def normalizer(graph_list, stats=None):
     # Get keys of node features
@@ -104,7 +120,7 @@ def normalizer(graph_list, stats=None):
                 graph.graph[key] = ((graph.graph[key] - mean) / std).astype(np.float32)
         return graph_list, stats
 
-# Converts list of graphs to list of fully connected graphs
+# Preprocess list of graphs to list of fully connected graphs
 def preprocess_graphs_to_fully_connected(graph_list):
     graph_list_new = [g.copy() for g in graph_list]
     for g, g_new in tzip(graph_list, graph_list_new):
@@ -125,7 +141,7 @@ def preprocess_graphs_to_fully_connected(graph_list):
                     g_new.edges[parent, child]['length'] = np.linalg.norm(g.nodes[child]['initial_position'] - g.nodes[parent]['initial_position']) 
     return graph_list_new
 
-# Converts list of graphs to list of fully connected graphs
+# Preprocess list of graphs to add edges from child to parent
 def preprocess_graphs(graph_list):
     graph_list_new = [g.copy() for g in graph_list]
     for g, g_new in tzip(graph_list, graph_list_new):
