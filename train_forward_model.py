@@ -120,7 +120,7 @@ if __name__ == '__main__':
 
     train_loss_history = []
     val_loss_history = []
-    best_loss = 1e9
+    best_dist_err_std = 1e9
     
     for epoch in range(1, cfg.train.epochs+1):   
         train_loss, train_dist_err_mean, train_dist_error_std = train(model, optimizer, criterion, train_loader, epoch, device)
@@ -134,11 +134,11 @@ if __name__ == '__main__':
                 'val_max_distance_error_mean': val_dist_err_mean,
                 'val_max_distance_error_std': val_dist_err_std,}
             )
-        if val_loss<best_loss:
-            best_loss=val_loss
+        if val_dist_err_std<best_dist_err_std:
+            best_dist_err_std=val_dist_err_std
             best_model = copy.deepcopy(model)
             torch.save(best_model.state_dict(), os.path.join(output_dir, 'best_model.pt'))
-        scheduler.step(best_loss)
+        scheduler.step(best_dist_err_std)
 
         
 

@@ -49,10 +49,11 @@ if __name__ == '__main__':
 
     model = LearnedSimulator(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
     # load checkpoint
-    model.load_state_dict(torch.load(cfg.checkpoint_path))
+    model.load_state_dict(torch.load(cfg.forward_model_ckpt_path))
     criterion = torch.nn.MSELoss()
     
-    num_nodes = np.arange(8,31)
+    first_node_size = 8 # TODO: Make this a parameter in the config file
+    num_nodes = np.arange(first_node_size,first_node_size+len(cfg.test_data_name))
     assert(len(num_nodes)==len(cfg.test_data_name))
     test_loss_list = []
     max_distance_errors_list = []

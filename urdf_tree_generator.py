@@ -13,7 +13,7 @@ class URDFTreeGenerator(object):
         self.robot.setAttribute('name', urdf_name)
         self.urdf.appendChild(self.robot)
         self.generate_color_definitions()
-    
+        self.nx_graph = nx_graph
         # Generate tree from graph
         self.generate_tree(nx_graph, trunk_radius)
 

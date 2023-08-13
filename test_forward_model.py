@@ -84,7 +84,7 @@ if __name__ == '__main__':
 
     model = LearnedSimulator(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
     # load checkpoint
-    model.load_state_dict(torch.load(cfg.checkpoint_path))
+    model.load_state_dict(torch.load(cfg.forward_model_ckpt_path))
     criterion = torch.nn.MSELoss()
     test_loss, max_distance_error_mean, max_distance_error_std = test(model, criterion, test_loader, device)
     print(f'Test loss: {test_loss}')
