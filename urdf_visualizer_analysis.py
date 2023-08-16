@@ -21,28 +21,27 @@ class URDFVisualizer:
         self.contact_force_gt = contact_force_gt
         self.contact_node = contact_node
         self.contact_force = contact_force
-        
         self.auto_close = auto_close
 
-        self.num_envs = len(self.graph_predicted)
+        # Checking whether we are visualzing all policy predictions or just one
+        if self.contact_node is not None and self.contact_force.dim()>1:
+            self.num_envs = self.contact_force.shape[0]
+            self.contact_node_sort = torch.argsort(self.contact_node, descending=True)
+        else:
+            self.num_envs = 1
         self.gym = gymapi.acquire_gym()
         self.initialize_sim()
 
         self.asset_root = '.'
-
-        # Generate URDFs for initial, final, and predicted trees
-        self.assets_initial = []
-        self.assets_final = []
-        self.assets_predicted = []
-        for i in range(self.num_envs):
-            tree_urdf = URDFTreeGenerator(self.graph_initial[i], f'temp_tree_urdf', trunk_radius=self.args.trunk_radius, asset_path=self.asset_root)
-            self.assets_initial.append(self.load_asset(tree_urdf.save_file_name))
-            
-            tree_urdf = URDFTreeGenerator(self.graph_final[i], f'temp_tree_urdf', trunk_radius=self.args.trunk_radius, asset_path=self.asset_root)
-            self.assets_final.append(self.load_asset(tree_urdf.save_file_name))
-            
-            tree_urdf = URDFTreeGenerator(self.graph_predicted[i], f'temp_tree_urdf', trunk_radius=self.args.trunk_radius, asset_path=self.asset_root)
-            self.assets_predicted.append(self.load_asset(tree_urdf.save_file_name))
+        self.assets = []
+        tree_urdf = URDFTreeGenerator(graph_initial, f'temp_tree_urdf', trunk_radius=self.args.trunk_radius, asset_path=self.asset_root)
+        self.assets.append(self.load_asset(tree_urdf.save_file_name))
+        
+        tree_urdf = URDFTreeGenerator(graph_final, f'temp_tree_urdf', trunk_radius=self.args.trunk_radius, asset_path=self.asset_root)
+        self.assets.append(self.load_asset(tree_urdf.save_file_name))
+        
+        tree_urdf = URDFTreeGenerator(graph_predicted, f'temp_tree_urdf', trunk_radius=self.args.trunk_radius, asset_path=self.asset_root)
+        self.assets.append(self.load_asset(tree_urdf.save_file_name))
 
         self.create_env()
         self.create_viewer()
@@ -122,34 +121,32 @@ class URDFVisualizer:
         #gym.add_ground(sim, plane_params)
 
         # create an array of DOF states that will be used to update the actors
-        num_dofs = self.gym.get_asset_dof_count(self.assets_initial[0])
+        num_dofs = self.gym.get_asset_dof_count(self.assets[0])
+        #dof_states = np.zeros(num_dofs, dtype=gymapi.DofState.dtype)
 
-        self.num_rigid_bodies = self.gym.get_asset_rigid_body_count(self.assets_initial[0])*3
+        self.num_rigid_bodies = 0
+        for asset in self.assets:
+            self.num_rigid_bodies += self.gym.get_asset_rigid_body_count(asset)
 
         # get array of DOF properties
-        self.tree_dof_props_per_asset = []
-        for tree_asset in self.assets_initial:
-            dof_props = self.gym.get_asset_dof_properties(tree_asset)
-            dof_props["driveMode"].fill(gymapi.DOF_MODE_POS) 
-            dof_props['effort'].fill(np.inf)
-            dof_props['velocity'].fill(9999999999)
-            dof_props['armature'].fill(0.1)
-            for i in range(num_dofs):
-                dof_props['stiffness'][i] = dof_props['friction'][i]    
-            dof_props['friction'].fill(0.0)
-            self.tree_dof_props_per_asset.append(dof_props)
-
+        dof_props = self.gym.get_asset_dof_properties(self.assets[0])
+        dof_props["driveMode"].fill(gymapi.DOF_MODE_POS) 
+        dof_props['effort'].fill(np.inf)
+        dof_props['velocity'].fill(9999999999)
+        dof_props['armature'].fill(0.1)
+        for i in range(num_dofs):
+            dof_props['stiffness'][i] = dof_props['friction'][i]  
+        dof_props['friction'].fill(0.0)
+        
         # set up the env grid
-        num_per_row = int(np.sqrt(self.num_envs))
+        num_per_row = 100
         spacing = 2.5
         env_lower = gymapi.Vec3(-spacing, 0.0, -spacing)
         env_upper = gymapi.Vec3(spacing, spacing, spacing)
 
         print("Creating %d environments" % self.num_envs)
         self.envs = []
-        self.initial_actors = []
-        self.final_actors = []
-        self.predicted_actors = []
+        self.actors = []
         for i in range(self.num_envs):
             # create env
             env = self.gym.create_env(self.sim, env_lower, env_upper, num_per_row)
@@ -158,31 +155,26 @@ class URDFVisualizer:
             pose = gymapi.Transform()
             pose.p = gymapi.Vec3(0.0, 0.0, 0.0)
             pose.r = gymapi.Quat()
-            dof_props = self.tree_dof_props_per_asset[i]
-            # Initial tree actor
-            actor_handle = self.gym.create_actor(env, self.assets_initial[i], pose, "actor", 0, 1, 0)
-            self.gym.set_actor_dof_properties(env, actor_handle, dof_props)
-            self.initial_actors.append(actor_handle) 
+            for asset_idx in range(len(self.assets)):
+                actor_handle = self.gym.create_actor(env, self.assets[asset_idx], pose, "actor", asset_idx, 1, 0)
+                self.actors.append(actor_handle)
+                self.gym.set_actor_dof_properties(env, actor_handle, dof_props)
+                #self.gym.set_actor_dof_states(env, actor_handle, dof_states, gymapi.STATE_ALL)
 
-            # Final tree actor
-            actor_handle = self.gym.create_actor(env, self.assets_final[i], pose, "actor", 1, 1, 0)
-            self.gym.set_actor_dof_properties(env, actor_handle, dof_props)
-            self.final_actors.append(actor_handle) 
-            color = gymapi.Vec3(0.0, 1.0, 0.0)
-            rb_names = self.gym.get_actor_rigid_body_names(env, actor_handle)
-            for rb_name in rb_names:
-                rb_idx = self.gym.find_actor_rigid_body_index(env, actor_handle, rb_name, gymapi.DOMAIN_ACTOR)
-                self.gym.set_rigid_body_color(env, actor_handle, rb_idx, gymapi.MESH_VISUAL_AND_COLLISION, color)
-
-            # Predicted tree actor
-            actor_handle = self.gym.create_actor(env, self.assets_predicted[i], pose, "actor", 2, 1, 0)
-            self.gym.set_actor_dof_properties(env, actor_handle, dof_props)
-            self.predicted_actors.append(actor_handle)     
-            color = gymapi.Vec3(1.0, 0.0, 0.0)
-            rb_names = self.gym.get_actor_rigid_body_names(env, actor_handle)
-            for rb_name in rb_names:
-                rb_idx = self.gym.find_actor_rigid_body_index(env, actor_handle, rb_name, gymapi.DOMAIN_ACTOR)
-                self.gym.set_rigid_body_color(env, actor_handle, rb_idx, gymapi.MESH_VISUAL_AND_COLLISION, color)
+                # Set rigid body colors
+                # Initial tree stays same, final tree is green, predicted tree is red
+                if asset_idx==1:                
+                    color = gymapi.Vec3(0.0, 1.0, 0.0)
+                    rb_names = self.gym.get_actor_rigid_body_names(env, actor_handle)
+                    for rb_name in rb_names:
+                        rb_idx = self.gym.find_actor_rigid_body_index(env, actor_handle, rb_name, gymapi.DOMAIN_ACTOR)
+                        self.gym.set_rigid_body_color(env, actor_handle, rb_idx, gymapi.MESH_VISUAL_AND_COLLISION, color)
+                elif asset_idx==2:
+                    color = gymapi.Vec3(1.0, 0.0, 0.0)
+                    rb_names = self.gym.get_actor_rigid_body_names(env, actor_handle)
+                    for rb_name in rb_names:
+                        rb_idx = self.gym.find_actor_rigid_body_index(env, actor_handle, rb_name, gymapi.DOMAIN_ACTOR)
+                        self.gym.set_rigid_body_color(env, actor_handle, rb_idx, gymapi.MESH_VISUAL_AND_COLLISION, color)
         self.gym.prepare_sim(self.sim)
 
         # Acquire gym tensor
@@ -193,26 +185,19 @@ class URDFVisualizer:
         self.dof_state = gymtorch.wrap_tensor(dof_state_tensor)
         self.rigid_body_state = gymtorch.wrap_tensor(rigid_body_tensor).view(self.num_envs, -1, 13)
         self.root_state_tensor = gymtorch.wrap_tensor(actor_root_state_tensor).view(self.num_envs, -1, 13)
+
         self.refresh()
-
-        self.asset_rb_handles_dict_list = []
-        for i in range(self.num_envs):
-            asset_rb_handles_dict = {
-                'initial': {},
-                'final': {},
-                'predicted': {}
-            }
-            for node in self.graph_initial[i].nodes:
-                rb_handle = self.gym.find_actor_rigid_body_handle(self.envs[i], self.initial_actors[i], f"node_{node}")
-                asset_rb_handles_dict['initial'][node] = rb_handle
-            for node in self.graph_final[i].nodes:
-                rb_handle = self.gym.find_actor_rigid_body_handle(self.envs[i], self.final_actors[i], f"node_{node}")
-                asset_rb_handles_dict['final'][node] = rb_handle
-            for node in self.graph_predicted[i].nodes:
-                rb_handle = self.gym.find_actor_rigid_body_handle(self.envs[i], self.predicted_actors[i], f"node_{node}")
-                asset_rb_handles_dict['predicted'][node] = rb_handle            
-            self.asset_rb_handles_dict_list.append(asset_rb_handles_dict)
-
+        
+        self.asset_rb_handles_dict = {
+            'initial': {},
+            'final': {},
+            'predicted': {}
+        }
+        for idx, key in enumerate(self.asset_rb_handles_dict.keys()):
+            for node in self.graph_predicted.nodes:
+                rb_handle = self.gym.find_actor_rigid_body_handle(env, self.actors[idx], f"node_{node}")
+                self.asset_rb_handles_dict[key][node] = rb_handle
+        
     def visualize(self):
         frame = 0
         rb_force_tensor = torch.zeros((self.num_envs, self.num_rigid_bodies, 3), device=self.device, dtype=torch.float)
@@ -221,36 +206,43 @@ class URDFVisualizer:
         contact_node_gt_geom = gymutil.WireframeSphereGeometry(0.02, 10, 10, gymapi.Transform(), color=(0, 1, 0))
         while not self.gym.query_viewer_has_closed(self.viewer):
             self.gym.clear_lines(self.viewer)
-            for i in range(self.num_envs):
+            for env_id in range(self.num_envs):
                 # Visualize GT contact node position
-                contact_node_gt_pos = self.rigid_body_state[i, self.asset_rb_handles_dict_list[i]['initial'][self.contact_node_gt[i].item()], :3]
+                contact_node_gt_pos = self.rigid_body_state[env_id, self.asset_rb_handles_dict['initial'][self.contact_node_gt.item()], :3]
+                
                 geom_pose = gymapi.Transform()
                 geom_pose.p = gymapi.Vec3(contact_node_gt_pos[0], contact_node_gt_pos[1], contact_node_gt_pos[2])
-                gymutil.draw_lines(contact_node_gt_geom, self.gym, self.viewer, self.envs[i], geom_pose)
+                gymutil.draw_lines(contact_node_gt_geom, self.gym, self.viewer, self.envs[env_id], geom_pose)
                 # Visualize GT contact force
-                rb_force_scaled = (self.contact_force_gt[i]*0.01).flatten().detach().cpu().numpy()
+                rb_force_scaled = (self.contact_force_gt*0.01).flatten().detach().cpu().numpy()
                 line_vertices = np.stack((contact_node_gt_pos.detach().cpu().numpy(), contact_node_gt_pos.detach().cpu().numpy() + rb_force_scaled), axis=0)
                 line_color = [0,1,0] 
                 num_lines = 1
-                self.gym.add_lines(self.viewer, self.envs[i], num_lines, line_vertices, line_color)
+                self.gym.add_lines(self.viewer, self.envs[env_id], num_lines, line_vertices, line_color)
 
+                
                 if self.contact_node is not None: # If we are visualizing control policy predictions            
                     # Visualize predicted contact node position
-                    contact_node = self.contact_node
-                    contact_force = self.contact_force
-                    contact_node_pos = self.rigid_body_state[i, self.asset_rb_handles_dict_list[i]['initial'][contact_node[i].item()], :3]
-                    rb_force_scaled = (contact_force[i]*0.01).flatten().detach().cpu().numpy()
+                    if self.num_envs==1: 
+                        contact_node = self.contact_node.item()
+                        contact_force = self.contact_force
+                    else:
+                        contact_node = self.contact_node_sort[env_id].item()
+                        contact_force = self.contact_force[contact_node]
+                        #contact_node_geom = gymutil.WireframeSphereGeometry(self.contact_node[contact_node].item(), 10, 10, gymapi.Transform(), color=(1, 0, 0))
+
+                    contact_node_pos = self.rigid_body_state[env_id, self.asset_rb_handles_dict['initial'][contact_node], :3]
+                    rb_force_scaled = (contact_force*0.01).flatten().detach().cpu().numpy()
                     geom_pose.p = gymapi.Vec3(contact_node_pos[0], contact_node_pos[1], contact_node_pos[2])
-                    gymutil.draw_lines(contact_node_geom, self.gym, self.viewer, self.envs[i], geom_pose)                    
+                    gymutil.draw_lines(contact_node_geom, self.gym, self.viewer, self.envs[env_id], geom_pose)                    
                     # Visualize predicted contact force
                     line_vertices = np.stack((contact_node_pos.detach().cpu().numpy(), contact_node_pos.detach().cpu().numpy() + rb_force_scaled), axis=0)
                     line_color = [1,0,0] 
                     num_lines = 1
-                    self.gym.add_lines(self.viewer, self.envs[i], num_lines, line_vertices, line_color)
+                    self.gym.add_lines(self.viewer, self.envs[env_id], num_lines, line_vertices, line_color)
                     # Simulate predicted contact force deformation    
-                    if frame>25:
-                        rb_force_tensor[i, self.asset_rb_handles_dict_list[i]['predicted'][contact_node[i].item()], :3] = contact_force[i]
-
+                    if frame>0:
+                        rb_force_tensor[env_id, self.asset_rb_handles_dict['predicted'][contact_node], :] = contact_force
             self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(rb_force_tensor), None, gymapi.ENV_SPACE)
             self.refresh()
                 
@@ -270,23 +262,17 @@ class URDFVisualizer:
                 import json
                 # Compute the maximum node distance between the predicted and target tree
                 # and the maximum node displacement between the initial and target tree
-                max_node_displacements = []
-                max_node_dist_errors = []
-                for i in range(self.num_envs):
-                    asset_rb_handles_dict = self.asset_rb_handles_dict_list[i]
-                    initial_tree_rb_handles = list(asset_rb_handles_dict['initial'].values())
-                    predicted_tree_rb_handles = list(asset_rb_handles_dict['predicted'].values())
-                    target_tree_rb_handles = list(asset_rb_handles_dict['final'].values())
-                    initial_node_pos = self.rigid_body_state[i, initial_tree_rb_handles, :3]
-                    predicted_node_pos = self.rigid_body_state[i, predicted_tree_rb_handles, :3]
-                    target_node_pos = self.rigid_body_state[i, target_tree_rb_handles, :3]
-                    node_dist_error = torch.norm(predicted_node_pos-target_node_pos, dim=-1)
-                    node_displacement = torch.norm(target_node_pos-initial_node_pos, dim=-1)
-                    max_node_displacement = torch.max(node_displacement).item()
-                    max_node_dist_error = torch.max(node_dist_error).item()
-                    max_node_displacements.append(max_node_displacement)
-                    max_node_dist_errors.append(max_node_dist_error)
-                serialized_data = json.dumps({'max_node_displacement': max_node_displacements, 'max_node_dist_error': max_node_dist_errors})
+                initial_tree_rb_handles = list(self.asset_rb_handles_dict['initial'].values())
+                predicted_tree_rb_handles = list(self.asset_rb_handles_dict['predicted'].values())
+                target_tree_rb_handles = list(self.asset_rb_handles_dict['final'].values())
+                initial_node_pos = self.rigid_body_state[0, initial_tree_rb_handles, :3]
+                predicted_node_pos = self.rigid_body_state[0, predicted_tree_rb_handles, :3]
+                target_node_pos = self.rigid_body_state[0, target_tree_rb_handles, :3]
+                node_dist_error = torch.norm(predicted_node_pos-target_node_pos, dim=-1)
+                node_displacement = torch.norm(target_node_pos-initial_node_pos, dim=-1)
+                max_node_displacement = torch.max(node_displacement).item()
+                max_node_dist_error = torch.max(node_dist_error).item()
+                serialized_data = json.dumps({'max_node_displacement': max_node_displacement, 'max_node_dist_error': max_node_dist_error})
                 print("DATA_START")
                 print(serialized_data)
                 print("DATA_END")

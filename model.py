@@ -65,7 +65,7 @@ class LearnedSimulator(torch.nn.Module):
         super().__init__()
         self.hidden_size = hidden_size
         self.node_in = MLP(4, hidden_size, hidden_size, 3) 
-        self.edge_in = MLP(2, hidden_size, hidden_size, 3) 
+        self.edge_in = MLP(3, hidden_size, hidden_size, 3) 
         self.node_out = MLP(hidden_size, hidden_size, dim, 3) 
 
         self.num_IN_layers = num_IN_layers
@@ -80,7 +80,8 @@ class LearnedSimulator(torch.nn.Module):
                             #data.initial_edge_delta, 
                             #data.length.unsqueeze(-1),
                             data.parent2child.unsqueeze(-1),
-                            data.branch.unsqueeze(-1)
+                            data.branch.unsqueeze(-1),
+                            data.stiffness.unsqueeze(-1),
                             ), dim=-1).float()
         node_feature = self.node_in(x)
         edge_feature = self.edge_in(edge_attr)
@@ -106,7 +107,7 @@ class LearnedPolicy(torch.nn.Module):
         super().__init__()
         self.hidden_size = hidden_size
         self.node_in = MLP(6, hidden_size, hidden_size, 3) 
-        self.edge_in = MLP(2, hidden_size, hidden_size, 3) 
+        self.edge_in = MLP(3, hidden_size, hidden_size, 3) 
         self.node_selector = MLP(hidden_size, hidden_size, 1, 3) 
         self.force_regressor = MLP(hidden_size, hidden_size, 3, 3) 
 
@@ -127,7 +128,8 @@ class LearnedPolicy(torch.nn.Module):
                             #data.initial_edge_delta, 
                             #data.length.unsqueeze(-1),
                             data.parent2child.unsqueeze(-1),
-                            data.branch.unsqueeze(-1)
+                            data.branch.unsqueeze(-1),
+                            data.stiffness.unsqueeze(-1),                            
                             ), dim=-1).float()
         node_feature = self.node_in(x)
         edge_feature = self.edge_in(edge_attr)

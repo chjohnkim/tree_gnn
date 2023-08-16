@@ -33,7 +33,6 @@ class DataCollectionGym:
         # Load some config file parameters
         self.cfg = cfg
         self.headless = self.cfg.task.headless
-
         self.max_episode_length = 50 #self.cfg["env"]["episodeLength"]
         self.visualize_actions = False #self.cfg["env"]["visualizeActions"] # For visualizing target node and force vector
         # Load asset information
@@ -57,7 +56,6 @@ class DataCollectionGym:
             self.DiGs_by_id.append(DiG_by_id)
             edge_tensor = torch.Tensor([[int(parent), int(child)] for parent, child in DiG_by_id.edges()]).long() # shape: (num_edges, 2) 
             self.edge_tensor_list.append(edge_tensor)
-
         # Initialize tree graph information
         self.num_nodes = self.DiGs_by_id[0].number_of_nodes() # Including root node (0)
         self.num_edges = self.DiGs_by_id[0].number_of_edges()
@@ -139,7 +137,7 @@ class DataCollectionGym:
         self.sim = self.gym.create_sim(args.compute_device_id, args.graphics_device_id, args.physics_engine, sim_params)
         if self.sim is None:
             raise Exception("Failed to create sim")
-        self._create_ground_plane()
+        #self._create_ground_plane()
         self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'], int(np.sqrt(self.num_envs)))
         self.gym.prepare_sim(self.sim)
         self.viewer = self.gym.create_viewer(self.sim, gymapi.CameraProperties())
@@ -184,22 +182,20 @@ class DataCollectionGym:
         print("num tree bodies: ", self.num_tree_bodies)
         print("num tree dofs: ", self.num_tree_dofs)
 
-        # Set stick dof props by reading directly from URDF
-        tree_dof_props = self.gym.get_asset_dof_properties(tree_asset)
-        tree_dof_props["driveMode"].fill(gymapi.DOF_MODE_POS) 
-        # TODO: Seems like the stiffness parameter is not read from URDF, so we need to set it manually.
-        # TODO: The damping parameter is read from URDF, but it is too small. We need to set it manually.
-        #for i in range(self.num_tree_dofs):
-        tree_dof_props['stiffness'].fill(600.)
-        tree_dof_props['damping'].fill(25.)
-        tree_dof_props['effort'].fill(np.inf)
-        tree_dof_props['velocity'].fill(9999999999)
-        tree_dof_props['friction'].fill(0.0)
-        tree_dof_props['armature'].fill(0.1)
-
-        # Overwrite stiffness and damping for root node
-        tree_dof_props['stiffness'][:3].fill(10000000)
-        tree_dof_props['damping'][:3].fill(10000)
+        self.tree_dof_props_per_asset = []
+        for tree_asset in tree_assets:
+            # Set stick dof props by reading directly from URDF
+            tree_dof_props = self.gym.get_asset_dof_properties(tree_asset)
+            tree_dof_props["driveMode"].fill(gymapi.DOF_MODE_POS) 
+            # TODO: Seems like the stiffness parameter is not read from URDF, so we need to set it manually.
+            # TODO: The damping parameter is read from URDF, but it is too small. We need to set it manually.
+            tree_dof_props['effort'].fill(np.inf)
+            tree_dof_props['velocity'].fill(9999999999)
+            tree_dof_props['armature'].fill(0.1)
+            for i in range(self.num_tree_dofs):
+                tree_dof_props['stiffness'][i] = tree_dof_props['friction'][i]    
+            tree_dof_props['friction'].fill(0.0)
+            self.tree_dof_props_per_asset.append(tree_dof_props)
 
         # Set start pose of tree and goal
         tree_start_pose = gymapi.Transform()
@@ -230,7 +226,7 @@ class DataCollectionGym:
             # Here we load different tree types by using different assets
             # Setting collision filter to 1 seems to make the tree more stable (visual observation)
             tree_actor = self.gym.create_actor(env_ptr, tree_assets[i%self.num_tree_types], tree_start_pose, "tree", i, 1, 0) 
-            self.gym.set_actor_dof_properties(env_ptr, tree_actor, tree_dof_props)
+            self.gym.set_actor_dof_properties(env_ptr, tree_actor, self.tree_dof_props_per_asset[i%self.num_tree_types])
             self.gym.end_aggregate(env_ptr)
 
             # Store the created env pointers
@@ -270,15 +266,14 @@ class DataCollectionGym:
                 rb_force_tensor = torch.zeros((self.num_envs, self.num_tree_bodies, 3), device=self.device, dtype=torch.float)
                 for i in range(self.num_envs):
                     rb_force_tensor[i, self.rb_node_id2handles_list[i%self.num_tree_types][contact_nodes[i]], :] = force_vector[i]
+            self.gym.refresh_rigid_body_state_tensor(self.sim)
+            self.gym.refresh_dof_state_tensor(self.sim)
 
-                self.gym.refresh_rigid_body_state_tensor(self.sim)
-                self.gym.refresh_dof_state_tensor(self.sim)
-
+            if frame_count%self.max_episode_length==10:
                 # TODO: Record initial state
                 initial_node_position = self.compute_observations()
-                
-
-            self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(rb_force_tensor), None, gymapi.ENV_SPACE)
+            if frame_count%self.max_episode_length>20:
+                self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(rb_force_tensor), None, gymapi.ENV_SPACE)
 
             if not self.headless:
                 # For visualizing the actions
@@ -345,14 +340,13 @@ class DataCollectionGym:
             # Graph attributes
             g.graph['contact_force'] = force_vector[i].detach().cpu().numpy()
             # Edge attributes
-            for parent, child in parent2child_edges:
+            for edge_idx, (parent, child) in enumerate(parent2child_edges):
                 g[parent][child]['initial_edge_delta'] = g.nodes[child]['initial_position'] - g.nodes[parent]['initial_position']
                 g[parent][child]['final_edge_delta'] = g.nodes[child]['final_position'] - g.nodes[parent]['final_position']
-                g[parent][child]['parent2child'] = 1
-            #for child, parent in child2parent_edges:
-            #    g[child][parent]['initial_edge_delta'] = g.nodes[parent]['initial_position'] - g.nodes[child]['initial_position']
-            #    g[child][parent]['final_edge_delta'] = g.nodes[parent]['final_position'] - g.nodes[child]['final_position']
-            #    g[child][parent]['parent2child'] = -1   
+                g[parent][child]['parent2child'] = 1 
+                g[parent][child]['branch'] = 1               
+                #g[parent][child]['stiffness'] = self.tree_dof_props_per_asset[i%self.num_tree_types][edge_idx*3]['stiffness']
+                g[parent][child]['stiffness'] = self.DiGs_by_id[i%self.num_tree_types].edges[str(parent), str(child)]['stiffness']
             graphs.append(g)
         return graphs
 

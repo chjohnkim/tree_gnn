@@ -63,6 +63,7 @@ if __name__ == '__main__':
         test_data_path = os.path.join(cfg.data_root, test_data)
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
+        test_graphs = test_graphs[:len(test_graphs)//10]
         test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graphs)
         test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=cfg.test.batch_size, shuffle=True)
         
@@ -80,25 +81,6 @@ if __name__ == '__main__':
         print(f'Finished evaluating {i}/{len(cfg.test_data_name)} graph lists.')
 
     # For each number of nodes, plot the violin plot of max distance displacement
-    fig, ax = plt.subplots()
-    ax.violinplot(max_distance_displacemnts_list, num_nodes, showmeans=True, showextrema=False, showmedians=False)
-    ax.set_xlabel('Number of nodes')
-    ax.set_ylabel('Distance between initial and final position of node with max displacement')
-    ax.set_title('Distance between initial and final position of node with max displacement vs Number of nodes')
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    plt.xticks(num_nodes)
-    plt.show()
-
-    # For each number of nodes, plot the violin plot of max distance error
-    fig, ax = plt.subplots()
-    ax.violinplot(max_distance_errors_list, num_nodes, showmeans=True, showextrema=False, showmedians=False)
-    ax.set_xlabel('Number of nodes')
-    ax.set_ylabel('Distance between predicted and final position of node with max error')
-    ax.set_title('Distance between predicted and final position of node with max error vs Number of nodes')
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    plt.xticks(num_nodes)
-    plt.show()
-
     # Plot the two violin plots in the same plot
     fig, ax = plt.subplots()
     ax.violinplot(max_distance_displacemnts_list, num_nodes, showmeans=True, showextrema=False, showmedians=False)
@@ -110,7 +92,7 @@ if __name__ == '__main__':
                        Line2D([0], [0], color='C1', label='Distance between predicted and final position of node with max error per tree')]
     ax.legend(handles=legend_elements, loc='upper left')
     # Set y axis limit
-    ax.set_ylim(0, 2.0)
+    ax.set_ylim(0, 1.0)
     plt.xticks(num_nodes)
     plt.show()
 

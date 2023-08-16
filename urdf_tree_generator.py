@@ -26,8 +26,6 @@ class URDFTreeGenerator(object):
 
         #edges, self.node_positions, edge_radii, _edge_length, edge_rpy = self._get_tree_info(nx_graph)
         edges = nx_graph.edges
-        num_nodes = len(nx_graph.nodes)
-        self.node_positions = np.array([nx_graph.nodes[i]['position'] for i in range(num_nodes)])
         _edge_length = np.array([nx_graph.edges[edge]['length'] for edge in edges])
         
         # Compute edge rpy
@@ -37,7 +35,7 @@ class URDFTreeGenerator(object):
         # The URDF is a tree structure so we need to keep track of the orientation of each node such that the origin of the URDF joint is appropriately oriented
         for edge in edges:
             # Get edge direction
-            edge_direction = self.node_positions[edge[1]] - self.node_positions[edge[0]]
+            edge_direction = nx_graph.nodes[edge[1]]['position'] - nx_graph.nodes[edge[0]]['position']
             edge_direction = edge_direction / np.linalg.norm(edge_direction)
             r_local = R.align_vectors([rotation_history[f'{edge[0]}'].as_matrix().T@edge_direction], [[0,0,1]])[0]
             r_parent =  rotation_history[f'{edge[0]}'] * r_local
@@ -48,7 +46,7 @@ class URDFTreeGenerator(object):
         
         # Compute edge radius
         for edge in edges:
-            nx_graph.edges[edge]['weight'] = np.linalg.norm(self.node_positions[edge[0]] - self.node_positions[edge[1]])
+            nx_graph.edges[edge]['weight'] = np.linalg.norm(nx_graph.nodes[edge[0]]['position'] - nx_graph.nodes[edge[1]]['position'])
         # Weight is equal to the length of the longest path in subtree rooted at edge parent node
         # radius = trunk_radius * (edge_weight / trunk_weight)
         for edge_idx, edge in enumerate(edges):
@@ -72,9 +70,10 @@ class URDFTreeGenerator(object):
             edge_length = _edge_length[i]
             self.generate_edge_link(parent_idx, child_idx, edge_radii[i], edge_length, 'brown')
             self.generate_node_link(child_idx)
-            damping = 100000
+            damping = 25
             effort_xyz = [99999999, 99999999, 99999999] 
-            self.generate_spherical_joint(parent_idx, child_idx, edge_rpy[i], edge_length, damping, effort_xyz) 
+            stiffness = nx_graph.edges[parent_idx, child_idx]['stiffness']
+            self.generate_spherical_joint(parent_idx, child_idx, edge_rpy[i], edge_length, damping, effort_xyz, friction=stiffness) 
             
     def generate_color_definitions(self):
         """
@@ -191,7 +190,7 @@ class URDFTreeGenerator(object):
                                  length, # Length of branch joining the parent and child
                                  damping, 
                                  effort, 
-                                 friction=3.0, 
+                                 friction=0.0, 
                                  lower=-3.1416, 
                                  upper=3.1416, 
                                  velocity=3.0):

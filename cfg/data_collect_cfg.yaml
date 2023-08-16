@@ -3,17 +3,17 @@ name: TreeGNN
 device: cuda
 
 env:
-  numEnvs: 1280
+  numEnvs: 1000
   envSpacing: 1.5
   episodeLength: 1 # John: Important for steady state
-  steadyStateLength: 50 # Scales the force vector by this value
-  forceScale: 1000
+  steadyStateLength: 100 
+  forceScale: 1000 # Scales the force vector by this value
   asset:
     assetRoot: "assets"
-    assetPathTrees: "22_nodes"
-    assetGroupSuffix: '22_node'
+    assetPathTrees: "30_nodes"
+    assetGroupSuffix: '30_node'
   trees: # Not used for stick env
-    numTrees: 128  # how many unique tree models to use among all envs
+    numTrees: 100  # how many unique tree models to use among all envs
 
   visualizeActions: False # For visualizing target node and force vector. Slows down iteration, set False for training.
 
@@ -40,8 +40,8 @@ sim:
     contact_collection: 1 # 0: CC_NEVER (don't collect contact info), 1: CC_LAST_SUBSTEP (collect only contacts on last substep), 2: CC_ALL_SUBSTEPS (default - all contacts)
 
 task:
-  num_data_collect: 2000
+  num_data_collect: 1000
   data_root: "data"
-  data_name: "graph_list_22_nodes_2k.pkl"
+  data_name: "graph_list_test_30_nodes_1k.pkl"
   headless: False
   

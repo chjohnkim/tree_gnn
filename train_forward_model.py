@@ -91,9 +91,6 @@ if __name__ == '__main__':
             test_graphs = pickle.load(f)
         test_graph_list += test_graphs[:len(test_graphs)//2]
 
-    #train_graph_list, stats = utils.normalizer(train_graph_list)
-    #test_graph_list, _ = utils.normalizer(test_graph_list, stats=stats)
-
     fully_connected = True
     if fully_connected:    
         train_loader = utils.nx_to_pyg_dataloader(utils.preprocess_graphs_to_fully_connected(train_graph_list), 
@@ -106,13 +103,9 @@ if __name__ == '__main__':
         validate_loader = utils.nx_to_pyg_dataloader(utils.preprocess_graphs(test_graph_list), 
                                                     batch_size=cfg.train.batch_size, shuffle=False)
 
-
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     model = LearnedSimulator(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
-    #model = ForwardModel(graph_feat_size=3, node_feat_size=4, edge_feat_size=4).to(device)
-    #model = IterativeForwardModel(graph_feat_size=3, node_feat_size=4, edge_feat_size=4).to(device)
-    #model = BaselineMLP(input_size=51, hidden_size=256, output_size=36, layers=5).to(device)
     
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.train.learning_rate)
     criterion = torch.nn.MSELoss()
@@ -138,6 +131,7 @@ if __name__ == '__main__':
             best_dist_err_std=val_dist_err_std
             best_model = copy.deepcopy(model)
             torch.save(best_model.state_dict(), os.path.join(output_dir, 'best_model.pt'))
+            print(f"Best model saved at epoch {epoch}")
         scheduler.step(best_dist_err_std)
 
         
