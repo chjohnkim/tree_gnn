@@ -112,10 +112,7 @@ class LearnedPolicy(torch.nn.Module):
         self.force_regressor = MLP(hidden_size, hidden_size, 3, 3) 
 
         self.num_IN_layers = num_IN_layers
-        self.IN_layers_node = torch.nn.ModuleList([InteractionNetwork(
-            hidden_size, 3
-        ) for _ in range(num_IN_layers)])
-        self.IN_layers_force = torch.nn.ModuleList([InteractionNetwork(
+        self.IN_layers = torch.nn.ModuleList([InteractionNetwork(
             hidden_size, 3
         ) for _ in range(num_IN_layers)])
 
@@ -137,27 +134,15 @@ class LearnedPolicy(torch.nn.Module):
 
         # stack of GNN layers
         for i in range(self.num_IN_layers):
-            node_feature, edge_feature = self.IN_layers_node[i](x=node_feature, 
+            node_feature, edge_feature = self.IN_layers[i](x=node_feature, 
                                                         edge_index=data.edge_index, 
                                                         edge_feature=edge_feature, 
                                                         graph_feature=graph_feature, 
                                                         batch=data.batch)
-        # Predict nodes after the first interaction network layer
+
+        contact_force = self.force_regressor(node_feature)
         node_selection_logits = self.node_selector(node_feature)
         
-        for i in range(self.num_IN_layers):
-            node_feature, edge_feature = self.IN_layers_force[i](x=node_feature, 
-                                                        edge_index=data.edge_index, 
-                                                        edge_feature=edge_feature, 
-                                                        graph_feature=graph_feature, 
-                                                        batch=data.batch)
-        # Predict contact force after the last interaction network layer
-        contact_force = self.force_regressor(node_feature)
-
-        # Apply softmax on node_selection based on data.batch
-        # Index into contact_force using contact_node_idx
-        #_, contact_node_idx = torch_scatter.scatter_max(node_selection_logits, data.batch, dim=0)
-        #contact_force = contact_force[contact_node_idx].reshape(-1, 3)
         return node_selection_logits.flatten(), contact_force
 
 if __name__=='__main__':

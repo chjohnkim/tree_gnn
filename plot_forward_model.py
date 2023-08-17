@@ -63,7 +63,7 @@ if __name__ == '__main__':
         test_data_path = os.path.join(cfg.data_root, test_data)
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
-        test_graphs = test_graphs[:len(test_graphs)//10]
+        test_graphs = test_graphs[:len(test_graphs)]
         test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graphs)
         test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=cfg.test.batch_size, shuffle=True)
         

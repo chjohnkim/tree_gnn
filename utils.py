@@ -223,6 +223,37 @@ def from_networkx(
     return data
 
 
+def get_quat_from_vec(vec, branch_vec, gripper_axis):
+    '''
+    Returns quaternion that rotates z axis to vec and x axis to a vector orthogonal to vec and branch_vec
+    '''
+    if gripper_axis == 'x':
+        # Compute orthonormal basis
+        x_axis = vec/torch.norm(vec, dim=-1, keepdim=True)
+        branch_vec = branch_vec/torch.norm(branch_vec, dim=1, keepdim=True)
+        z_axis = torch.cross(x_axis, branch_vec, dim=-1)
+        z_axis = -z_axis/torch.norm(z_axis, dim=-1, keepdim=True) # NOTE: Switched the sign of this for motion planning version to work
+        y_axis = torch.cross(z_axis, x_axis, dim=-1)
+        y_axis = y_axis/torch.norm(y_axis, dim=-1, keepdim=True)
+    elif gripper_axis == 'z':
+        z_axis = vec/torch.norm(vec, dim=-1, keepdim=True)
+        branch_vec = branch_vec/torch.norm(branch_vec, dim=1, keepdim=True)
+        y_axis = torch.cross(z_axis, branch_vec, dim=-1)
+        y_axis = y_axis/torch.norm(y_axis, dim=-1, keepdim=True)
+        x_axis = torch.cross(y_axis, z_axis, dim=-1)
+        x_axis = x_axis/torch.norm(x_axis, dim=-1, keepdim=True)
+    # Given three orthonormal basis, the quaternion is given by
+    # q = [w, x, y, z] = [sqrt(1+trace(R))/2, (R21-R12)/(4w), (R02-R20)/(4w), (R10-R01)/(4w)]
+    # where R is the rotation matrix
+    # https://en.wikipedia.org/wiki/Rotation_matrix#Quaternion
+    trace = x_axis[:,0] + y_axis[:,1] + z_axis[:,2]
+    w = torch.sqrt(1+trace)/2
+    x = (y_axis[:,2] - z_axis[:,1])/(4*w)
+    y = (z_axis[:,0] - x_axis[:,2])/(4*w)
+    z = (x_axis[:,1] - y_axis[:,0])/(4*w)
+    quat = torch.stack((x,y,z, w), dim=-1)
+    return quat
+
 def normalizer(graph_list, stats=None):
     # Get keys of node features
     node_feat_keys = graph_list[0].nodes[next(iter(graph_list[0].nodes))].keys()

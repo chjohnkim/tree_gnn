@@ -8,10 +8,11 @@ env:
   episodeLength: 1 # John: Important for steady state
   steadyStateLength: 100 
   forceScale: 1000 # Scales the force vector by this value
+  trajectoryScale: 0.1 # Scales the trajectory distance by this value
   asset:
     assetRoot: "assets"
     assetPathTrees: "30_nodes"
-    assetGroupSuffix: '30_node'
+    assetGroupSuffix: "30_node"
   trees: # Not used for stick env
     numTrees: 100  # how many unique tree models to use among all envs
 
@@ -40,8 +41,8 @@ sim:
     contact_collection: 1 # 0: CC_NEVER (don't collect contact info), 1: CC_LAST_SUBSTEP (collect only contacts on last substep), 2: CC_ALL_SUBSTEPS (default - all contacts)
 
 task:
-  num_data_collect: 1000
-  data_root: "data"
+  num_data_collect: 1000000
+  data_root: "data/gripper_trajectory"
   data_name: "graph_list_test_30_nodes_1k.pkl"
   headless: False
   
