@@ -88,8 +88,8 @@ if __name__ == '__main__':
     ax.set_xlabel('Number of nodes')
     ax.set_ylabel('Distance (m)')
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    legend_elements = [Line2D([0], [0], color='C0', label='Distance between initial and final position of node with max displacement per tree'),
-                       Line2D([0], [0], color='C1', label='Distance between predicted and final position of node with max error per tree')]
+    legend_elements = [Line2D([0], [0], color='C0', label='Average distance of node with maximum ditsance between initial and final state'),
+                       Line2D([0], [0], color='C1', label='Average distance of node with maximum distance between predicted and final state')]
     ax.legend(handles=legend_elements, loc='upper left')
     # Set y axis limit
     ax.set_ylim(0, 1.0)

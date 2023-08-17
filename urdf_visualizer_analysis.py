@@ -140,7 +140,7 @@ class URDFVisualizer:
         
         # set up the env grid
         num_per_row = 100
-        spacing = 2.5
+        spacing = 0.5
         env_lower = gymapi.Vec3(-spacing, 0.0, -spacing)
         env_upper = gymapi.Vec3(spacing, spacing, spacing)
 
@@ -265,14 +265,18 @@ class URDFVisualizer:
                 initial_tree_rb_handles = list(self.asset_rb_handles_dict['initial'].values())
                 predicted_tree_rb_handles = list(self.asset_rb_handles_dict['predicted'].values())
                 target_tree_rb_handles = list(self.asset_rb_handles_dict['final'].values())
-                initial_node_pos = self.rigid_body_state[0, initial_tree_rb_handles, :3]
-                predicted_node_pos = self.rigid_body_state[0, predicted_tree_rb_handles, :3]
-                target_node_pos = self.rigid_body_state[0, target_tree_rb_handles, :3]
-                node_dist_error = torch.norm(predicted_node_pos-target_node_pos, dim=-1)
-                node_displacement = torch.norm(target_node_pos-initial_node_pos, dim=-1)
-                max_node_displacement = torch.max(node_displacement).item()
-                max_node_dist_error = torch.max(node_dist_error).item()
-                serialized_data = json.dumps({'max_node_displacement': max_node_displacement, 'max_node_dist_error': max_node_dist_error})
+                initial_node_pos = self.rigid_body_state[:, initial_tree_rb_handles, :3]
+                predicted_node_pos = self.rigid_body_state[:, predicted_tree_rb_handles, :3]
+                target_node_pos = self.rigid_body_state[:, target_tree_rb_handles, :3]
+
+                # Compute metrics
+                dist_error = torch.norm(predicted_node_pos-target_node_pos, dim=-1)
+                mean_dist_error = torch.mean(dist_error, dim=-1).cpu().numpy().tolist()
+                max_dist_error = torch.max(dist_error, dim=-1)[0].cpu().numpy().tolist()
+                node_probs = self.contact_node[self.contact_node_sort].cpu().numpy().tolist()
+                node_indices = self.contact_node_sort.cpu().numpy().tolist()
+                data = {'mean_dist_error': mean_dist_error, 'max_dist_error': max_dist_error, 'node_probs': node_probs, 'node_indices': node_indices}
+                serialized_data = json.dumps(data)
                 print("DATA_START")
                 print(serialized_data)
                 print("DATA_END")

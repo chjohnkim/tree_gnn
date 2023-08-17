@@ -110,15 +110,16 @@ if __name__ == '__main__':
     # Plot the two violin plots in the same plot
     first_node_size = 8 # TODO: Make this a parameter in the config file
     num_nodes = np.arange(first_node_size,first_node_size+len(cfg.test_data_name))
-    
+    print(len(max_node_displacements_per_tree_size))
+    print(len(num_nodes))
     fig, ax = plt.subplots()
     ax.violinplot(max_node_displacements_per_tree_size, num_nodes, showmeans=True, showextrema=False, showmedians=False)
     ax.violinplot(max_node_dist_errors_per_tree_size, num_nodes, showmeans=True, showextrema=False, showmedians=False)
     ax.set_xlabel('Number of nodes')
     ax.set_ylabel('Distance (m)')
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    legend_elements = [Line2D([0], [0], color='C0', label='Distance between initial and final position of node with max displacement per tree'),
-                       Line2D([0], [0], color='C1', label='Distance between predicted and final position of node with max error per tree')]
+    legend_elements = [Line2D([0], [0], color='C0', label='Average distance of node with maximum ditsance between initial and final state'),
+                       Line2D([0], [0], color='C1', label='Average distance of node with maximum distance between predicted and final state')]
     ax.legend(handles=legend_elements, loc='upper left')
     # Set y axis limit
     ax.set_ylim(0, 1.0)
