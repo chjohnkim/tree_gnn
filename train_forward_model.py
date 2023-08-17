@@ -80,13 +80,13 @@ if __name__ == '__main__':
 
     train_graph_list = []    
     for train_data in cfg.train_data_name:
-        train_data_path = os.path.join(cfg.data_root, train_data)
+        train_data_path = os.path.join(cfg.data_root, cfg.mode, train_data)
         with open(train_data_path, 'rb') as f:
             train_graphs = pickle.load(f)
-        train_graph_list += train_graphs
+        train_graph_list += train_graphs[:len(train_graphs)//4*3]
     test_graph_list = []
     for test_data in cfg.test_data_name:
-        test_data_path = os.path.join(cfg.data_root, test_data)
+        test_data_path = os.path.join(cfg.data_root, cfg.mode, test_data)
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
         test_graph_list += test_graphs[:len(test_graphs)//2]
@@ -127,12 +127,12 @@ if __name__ == '__main__':
                 'val_max_distance_error_mean': val_dist_err_mean,
                 'val_max_distance_error_std': val_dist_err_std,}
             )
-        if val_dist_err_std<best_dist_err_std:
-            best_dist_err_std=val_dist_err_std
+        if val_dist_err_mean<best_dist_err_std:
+            best_dist_err_std=val_dist_err_mean
             best_model = copy.deepcopy(model)
             torch.save(best_model.state_dict(), os.path.join(output_dir, 'best_model.pt'))
             print(f"Best model saved at epoch {epoch}")
-        scheduler.step(best_dist_err_std)
+        scheduler.step(val_dist_err_mean)
 
         
 

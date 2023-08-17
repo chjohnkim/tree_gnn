@@ -109,13 +109,13 @@ if __name__ == '__main__':
     
     train_graph_list = []    
     for train_data in cfg.train_data_name:
-        train_data_path = os.path.join(cfg.data_root, train_data)
+        train_data_path = os.path.join(cfg.data_root, cfg.mode, train_data)
         with open(train_data_path, 'rb') as f:
             train_graphs = pickle.load(f)
-        train_graph_list += train_graphs
+        train_graph_list += train_graphs[:len(train_graphs)//4*3]
     test_graph_list = []
     for test_data in cfg.test_data_name:
-        test_data_path = os.path.join(cfg.data_root, test_data)
+        test_data_path = os.path.join(cfg.data_root, cfg.mode, test_data)
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
         test_graph_list += test_graphs[:len(test_graphs)//2]
@@ -146,10 +146,9 @@ if __name__ == '__main__':
     train_loss_history = []
     val_loss_history = []
     best_loss = 1e9
-    lam = 0.9
     for epoch in range(1, cfg.train.epochs+1):   
-        train_loss, train_loss_reg, train_loss_cls = train(model, optimizer, criterion_reg, criterion_cls, train_loader, epoch, lam, device)
-        val_loss, val_loss_reg, val_loss_cls, accuracy  = validate(model, criterion_reg, criterion_cls, validate_loader, epoch, lam, device)
+        train_loss, train_loss_reg, train_loss_cls = train(model, optimizer, criterion_reg, criterion_cls, train_loader, epoch, cfg.train.lam, device)
+        val_loss, val_loss_reg, val_loss_cls, accuracy  = validate(model, criterion_reg, criterion_cls, validate_loader, epoch, cfg.train.lam, device)
         if cfg.logging.wandb:
             wandb.log(
                 {'train_loss': train_loss,

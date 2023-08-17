@@ -1,30 +1,32 @@
 # used to create the object
-name: ablation-fully_connected-1_layers-remove_edge_delta_and_length
+name: control_policy_gripper_trajectory_8k_10cm
 device: cuda
+mode: 'gripper_contact' # virtual_force or gripper_contact
 data_root: "data"
 train_data_name: [
-                  "graph_list_10_nodes_2k.pkl",
-                  "graph_list_12_nodes_2k.pkl",
-                  "graph_list_14_nodes_2k.pkl",
-                  "graph_list_16_nodes_2k.pkl",
-                  "graph_list_18_nodes_2k.pkl",
-                  "graph_list_20_nodes_2k.pkl"
+                  "graph_list_10_nodes_8k.pkl",
+                  "graph_list_12_nodes_8k.pkl",
+                  "graph_list_14_nodes_8k.pkl",
+                  "graph_list_16_nodes_8k.pkl",
+                  "graph_list_18_nodes_8k.pkl",
+                  "graph_list_20_nodes_8k.pkl",
                   ]
 test_data_name:  [
-                  "graph_list_9_nodes_2k.pkl",
-                  "graph_list_11_nodes_2k.pkl",
-                  "graph_list_13_nodes_2k.pkl",
-                  "graph_list_15_nodes_2k.pkl",
-                  "graph_list_17_nodes_2k.pkl",
-                  "graph_list_19_nodes_2k.pkl",
-                  "graph_list_21_nodes_2k.pkl"
+                  "graph_list_9_nodes_1k.pkl",
+                  "graph_list_11_nodes_1k.pkl",
+                  "graph_list_13_nodes_1k.pkl",
+                  "graph_list_15_nodes_1k.pkl",
+                  "graph_list_17_nodes_1k.pkl",
+                  "graph_list_19_nodes_1k.pkl",
+                  "graph_list_21_nodes_1k.pkl",
                   ]
 train:
   epochs: 10000000
   batch_size: 128
   learning_rate: 1e-3
+  lam: 0.1
 model:
   hidden_size: 128
   num_IN_layers: 1
 logging:
-  wandb: True
+  wandb: False
