@@ -7,7 +7,7 @@ from model import LearnedSimulator
 import subprocess
 import tempfile 
 
-def visualize(model, data_loader, device):
+def visualize(model, data_loader, device, cfg):
     model.eval()
     with torch.no_grad():
         for data in data_loader:
@@ -31,13 +31,13 @@ def visualize(model, data_loader, device):
             g_final = utils.tensor_to_nx(final_pos, edge_index, edge_stiffness)
             # Seriealize data to pass to URDF_visualizer.py
             #data = [g_initial, g_final, g_prediction, contact_node, contact_force]
-            data = [[g_initial], [g_final], [g_prediction], [contact_node], [contact_force]]
+            data = [[g_initial], [g_final], [g_prediction], contact_node.unsqueeze(0), contact_force.unsqueeze(0)]
             serialized_data = pickle.dumps(data)
             # Create temporary file to store serialized data
             with tempfile.NamedTemporaryFile(delete=True) as temp_file:
                 temp_file.write(serialized_data)
                 # Launch URDF_visualizer.py and pass the temporary file name as argument
-                subprocess.run(['python', 'urdf_visualizer.py', '--temp_file', temp_file.name])
+                subprocess.run(['python', 'urdf_visualizer.py', '--temp_file', temp_file.name, '--mode', cfg.mode])
             # Clean up the temporary file
             temp_file.close()
 
@@ -47,7 +47,7 @@ if __name__ == '__main__':
 
     test_graph_list = []
     for test_data in cfg.test_data_name:
-        test_data_path = os.path.join(cfg.data_root, test_data)
+        test_data_path = os.path.join(cfg.data_root, cfg.mode, test_data)
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
         test_graph_list += test_graphs[:len(test_graphs)//10]
@@ -57,7 +57,7 @@ if __name__ == '__main__':
     model.load_state_dict(torch.load(cfg.forward_model_ckpt_path))
     
     test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=1, shuffle=True)
-    visualize(model, test_loader, device)        
+    visualize(model, test_loader, device, cfg)        
 
     
 

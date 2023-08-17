@@ -6,7 +6,7 @@ import torch
 from model import LearnedPolicy
 import subprocess
 import tempfile
-
+import numpy as np 
 def visualize(model, data_loader, device):
     model.eval()
     with torch.no_grad():
@@ -17,7 +17,7 @@ def visualize(model, data_loader, device):
             contact_node = torch.argmax(node_selection_logits)
             #contact_force = contact_force[contact_node]
             node_selection_probs = torch.softmax(node_selection_logits, dim=-1)
-            
+            print('Node selection probs: ', np.around(node_selection_probs.cpu().numpy()*100, 2))
             # Ground Truth
             contact_node_gt = torch.argmax(data.contact_node.float())
             contact_force_gt = data.contact_force            
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     
     test_graph_list = []
     for test_data in cfg.test_data_name:
-        test_data_path = os.path.join(cfg.data_root, test_data)
+        test_data_path = os.path.join(cfg.data_root, cfg.mode, test_data)
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
         test_graph_list += test_graphs[:len(test_graphs)//10]

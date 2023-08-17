@@ -14,7 +14,7 @@ import numpy as np
 from tqdm import tqdm
 import torch_scatter
 
-def test(model, data_loader, device):
+def test(model, data_loader, device, cfg):
     max_node_dist_errors = []
     max_node_displacements = []
     model.eval()
@@ -69,9 +69,9 @@ def test(model, data_loader, device):
                 with tempfile.NamedTemporaryFile(delete=True) as temp_file:
                     temp_file.write(serialized_data)
                     # Launch URDF_visualizer.py and pass the temporary file name as argument
-                    process = subprocess.run(['python', 'urdf_visualizer.py', '--temp_file', temp_file.name], capture_output=True, text=True) # TODO: Temp commented
+                    process = subprocess.run(['python', 'urdf_visualizer.py', '--temp_file', temp_file.name, '--mode', cfg.mode], capture_output=True, text=True) # TODO: Temp commented
                 temp_file.close()
-                            
+                
                 # Get the standard output from the completed process
                 serialized_data = process.stdout.strip()
                     
@@ -97,13 +97,13 @@ if __name__ == '__main__':
     max_node_displacements_per_tree_size = []
     for test_data in cfg.test_data_name:
         print(test_data)
-        test_data_path = os.path.join(cfg.data_root, test_data)
+        test_data_path = os.path.join(cfg.data_root, cfg.mode, test_data)
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
         test_graph_list = test_graphs[:len(test_graphs)]
         test_loader = utils.nx_to_pyg_dataloader(utils.preprocess_graphs_to_fully_connected(test_graph_list), 
                                                         batch_size=cfg.test.batch_size, shuffle=False)
-        max_node_dist_errors, max_node_displacements = test(model, test_loader, device)
+        max_node_dist_errors, max_node_displacements = test(model, test_loader, device, cfg)
         max_node_dist_errors_per_tree_size.append(max_node_dist_errors)
         max_node_displacements_per_tree_size.append(max_node_displacements)
     

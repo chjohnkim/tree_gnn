@@ -7,7 +7,7 @@ from model import LearnedPolicy
 import subprocess
 import tempfile
 import numpy as np 
-def visualize(model, data_loader, device):
+def visualize(model, data_loader, device, cfg):
     model.eval()
     with torch.no_grad():
         for i, data in enumerate(data_loader):
@@ -43,13 +43,13 @@ def visualize(model, data_loader, device):
             
             # Serialize data to pass to URDF_visualizer.py
             data = [[g_initial], [g_final], [g_prediction], 
-                    [contact_node_gt], [contact_force_gt], [contact_node], [contact_force]]
+                    contact_node_gt.unsqueeze(0), contact_force_gt.unsqueeze(0), contact_node.unsqueeze(0), contact_force.unsqueeze(0)]
             serialized_data = pickle.dumps(data)
             # Create temporary file to store serialized data
             with tempfile.NamedTemporaryFile(delete=True) as temp_file:
                 temp_file.write(serialized_data)
                 # Launch URDF_visualizer.py and pass the temporary file name as argument
-                subprocess.run(['python', 'urdf_visualizer.py', '--temp_file', temp_file.name])
+                subprocess.run(['python', 'urdf_visualizer.py', '--temp_file', temp_file.name, '--mode', cfg.mode])
             # Clean up the temporary file
             temp_file.close()
 
@@ -63,12 +63,12 @@ if __name__ == '__main__':
     
     test_graph_list = []
     for test_data in cfg.test_data_name:
-        test_data_path = os.path.join(cfg.data_root, test_data)
+        test_data_path = os.path.join(cfg.data_root, cfg.mode, test_data)
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
         test_graph_list += test_graphs[:len(test_graphs)//10]
     test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
     test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=1, shuffle=True)
-    visualize(model, test_loader, device)
+    visualize(model, test_loader, device, cfg)
         
 
