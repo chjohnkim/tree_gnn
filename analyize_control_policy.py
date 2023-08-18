@@ -13,7 +13,7 @@ from matplotlib.ticker import MaxNLocator
 from matplotlib.lines import Line2D
 from tqdm import tqdm
 
-def visualize(model, data_loader, device):
+def visualize(model, data_loader, device, cfg):
     node_probs = []
     mean_dist_errors = []
     max_dist_errors = []
@@ -48,13 +48,13 @@ def visualize(model, data_loader, device):
 
                 # Serialize data to pass to URDF_visualizer.py
                 auto_close = 100
-                data = [g_initial, g_final, g_prediction, contact_node_gt, contact_force_gt, node_selection_probs, contact_force, auto_close]
+                data = [[g_initial], [g_final], [g_prediction], contact_node_gt, contact_force_gt, node_selection_probs, contact_force, auto_close]
                 serialized_data = pickle.dumps(data)
                 # Create temporary file to store serialized data
                 with tempfile.NamedTemporaryFile(delete=True) as temp_file:
                     temp_file.write(serialized_data)
                     # Launch URDF_visualizer.py and pass the temporary file name as argument
-                    process = subprocess.run(['python', 'urdf_visualizer_analysis.py', '--temp_file', temp_file.name], capture_output=True, text=True) 
+                    process = subprocess.run(['python', 'urdf_visualizer.py', '--temp_file', temp_file.name, '--mode', cfg.mode], capture_output=True, text=True) 
                 # Clean up the temporary file
                 temp_file.close()
 
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     model.load_state_dict(torch.load(cfg.control_policy_ckpt_path))
     test_loader = utils.nx_to_pyg_dataloader(utils.preprocess_graphs_to_fully_connected(test_graph_list), 
                                                     batch_size=1, shuffle=True)
-    node_probs, mean_dist_errors, max_dist_errors = visualize(model, test_loader, device)
+    node_probs, mean_dist_errors, max_dist_errors = visualize(model, test_loader, device, cfg)
     node_probs = np.array(node_probs).T.tolist()
     mean_dist_errors = np.array(mean_dist_errors).T.tolist()
     max_dist_errors = np.array(max_dist_errors).T.tolist()
@@ -119,5 +119,6 @@ if __name__ == '__main__':
     ax.legend(handles=legend_elements, loc='upper left')
     ax.set_xticks(node_order)
     ax.set_xticklabels(node_order)
+    ax.set_ylim(0, 0.6)
     plt.show()
 

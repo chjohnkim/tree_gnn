@@ -8,10 +8,6 @@ import torch
 import utils
 from copy import deepcopy
 
-# TODO: There is a memory leak problem with this class
-# The problem comes from launching and closing the viewer multiple times
-# Related post: https://forums.developer.nvidia.com/t/possible-memory-leak/196747/3
-# Fixed it by subprocessing the URDFVisualizer class
 class URDFVisualizer:
     def __init__(self, args, graph_initial, graph_final, graph_predicted, 
                  contact_node_gt, contact_force_gt, contact_node=None, contact_force=None, auto_close=np.inf):
@@ -28,12 +24,29 @@ class URDFVisualizer:
         self.mode = args.mode
         self.auto_close = auto_close
         
-        self.num_actors = 3 
         self.use_gripper = self.mode=='gripper_contact' and self.contact_node is not None
+
+        self.node_analysis = False
+        if self.contact_node is not None:
+            if self.contact_node.shape!=contact_node_gt.shape:
+                self.node_analysis = True
+
+        self.num_actors = 3 
         if self.use_gripper:
             self.num_actors = 4
         self.num_nodes = len(self.graph_initial[0].nodes)
-        self.num_envs = len(self.graph_predicted)
+        if self.node_analysis:
+            self.num_envs = self.num_nodes
+            self.contact_node_sort = torch.argsort(self.contact_node, descending=True)
+            # Copy the contents graph_initial, graph_final, and graph_predicted for each node
+            self.graph_initial = [deepcopy(self.graph_initial[0]) for _ in range(self.num_envs)]
+            self.graph_final = [deepcopy(self.graph_final[0]) for _ in range(self.num_envs)]
+            self.graph_predicted = [deepcopy(self.graph_predicted[0]) for _ in range(self.num_envs)]
+            # Copy the contents of contact_node_gt and contact_force_gt for each node as tensors
+            self.contact_node_gt = torch.stack([self.contact_node_gt for _ in range(self.num_envs)])
+            self.contact_force_gt = torch.stack([self.contact_force_gt for _ in range(self.num_envs)])
+        else:
+            self.num_envs = len(self.graph_predicted)
         self.gym = gymapi.acquire_gym()
         self.initialize_sim()
 
@@ -170,8 +183,12 @@ class URDFVisualizer:
             self.tree_dof_props_per_asset.append(dof_props)
 
         # set up the env grid
-        num_per_row = int(np.sqrt(self.num_envs))
-        spacing = 2.5
+        if self.node_analysis:
+            num_per_row = self.num_nodes+1
+            spacing = 0.5
+        else:
+            num_per_row = int(np.sqrt(self.num_envs))
+            spacing = 2.5
         env_lower = gymapi.Vec3(-spacing, 0.0, -spacing)
         env_upper = gymapi.Vec3(spacing, spacing, spacing)
 
@@ -296,11 +313,23 @@ class URDFVisualizer:
             if self.use_gripper:
                 if frame==0:
                     # Compute initial contact node position and parent node position
-                    contact_nodes = torch.tensor(self.contact_node)
-                    gripper_trajectory = self.contact_force
-                    parent_nodes = [int(next(self.DiGs_by_id[i%self.num_envs].predecessors(str(contact_nodes[i].item()))))  
-                        for i in range(self.num_envs)]
-                    parent_node_positions = torch.stack([self.default_node_id2positions_list[i%self.num_envs][node_id] for i, node_id in enumerate(parent_nodes)])
+                    if self.node_analysis:
+                        contact_nodes = self.contact_node_sort
+                        gripper_trajectory = self.contact_force[contact_nodes]
+                    else:
+                        contact_nodes = torch.tensor(self.contact_node)
+                        gripper_trajectory = self.contact_force
+                    parent_nodes = []
+                    for i in range(self.num_envs):
+                        if contact_nodes[i].item()==0:
+                            parent_nodes.append(-1)
+                        else: 
+                            parent_nodes.append(int(next(self.DiGs_by_id[i].predecessors(str(contact_nodes[i].item())))))
+                    #parent_nodes = [int(next(self.DiGs_by_id[i%self.num_envs].predecessors(str(contact_nodes[i].item()))))  
+                    #    for i in range(self.num_envs)]
+                    parent_node_positions = torch.stack([self.default_node_id2positions_list[i%self.num_envs][node_id] if node_id!=-1 
+                                                         else torch.zeros((3,), dtype=torch.float32, device=self.device) 
+                                                         for i, node_id in enumerate(parent_nodes)])
                     contact_node_positions = torch.stack([self.default_node_id2positions_list[i%self.num_envs][node_id.item()] for i, node_id in enumerate(contact_nodes)])
                     # Compute branch vectors
                     branch_vectors = contact_node_positions - parent_node_positions
@@ -347,8 +376,12 @@ class URDFVisualizer:
 
                 if self.contact_node is not None: # If we are visualizing control policy predictions            
                     # Visualize predicted contact node position
-                    contact_node = self.contact_node
-                    contact_force = self.contact_force
+                    if self.node_analysis:
+                        contact_node = self.contact_node_sort
+                        contact_force = self.contact_force[contact_node]
+                    else:
+                        contact_node = self.contact_node
+                        contact_force = self.contact_force
                     contact_node_pos = self.rigid_body_state[i, self.asset_rb_handles_dict_list[i]['initial'][contact_node[i].item()], :3]
                     rb_force_scaled = (contact_force[i]*visual_scaling_factor).flatten().detach().cpu().numpy()
                     geom_pose.p = gymapi.Vec3(contact_node_pos[0], contact_node_pos[1], contact_node_pos[2])
@@ -379,25 +412,41 @@ class URDFVisualizer:
             frame+=1
             if frame>self.auto_close:
                 import json
-                # Compute the maximum node distance between the predicted and target tree
-                # and the maximum node displacement between the initial and target tree
-                max_node_displacements = []
-                max_node_dist_errors = []
-                for i in range(self.num_envs):
-                    asset_rb_handles_dict = self.asset_rb_handles_dict_list[i]
-                    initial_tree_rb_handles = list(asset_rb_handles_dict['initial'].values())
-                    predicted_tree_rb_handles = list(asset_rb_handles_dict['predicted'].values())
-                    target_tree_rb_handles = list(asset_rb_handles_dict['final'].values())
-                    initial_node_pos = self.rigid_body_state[i, initial_tree_rb_handles, :3]
-                    predicted_node_pos = self.rigid_body_state[i, predicted_tree_rb_handles, :3]
-                    target_node_pos = self.rigid_body_state[i, target_tree_rb_handles, :3]
-                    node_dist_error = torch.norm(predicted_node_pos-target_node_pos, dim=-1)
-                    node_displacement = torch.norm(target_node_pos-initial_node_pos, dim=-1)
-                    max_node_displacement = torch.max(node_displacement).item()
-                    max_node_dist_error = torch.max(node_dist_error).item()
-                    max_node_displacements.append(max_node_displacement)
-                    max_node_dist_errors.append(max_node_dist_error)
-                serialized_data = json.dumps({'max_node_displacement': max_node_displacements, 'max_node_dist_error': max_node_dist_errors})
+                if self.node_analysis:
+                    initial_tree_rb_handles = list(self.asset_rb_handles_dict_list[0]['initial'].values())
+                    predicted_tree_rb_handles = list(self.asset_rb_handles_dict_list[0]['predicted'].values())
+                    target_tree_rb_handles = list(self.asset_rb_handles_dict_list[0]['final'].values())
+                    initial_node_pos = self.rigid_body_state[:, initial_tree_rb_handles, :3]
+                    predicted_node_pos = self.rigid_body_state[:, predicted_tree_rb_handles, :3]
+                    target_node_pos = self.rigid_body_state[:, target_tree_rb_handles, :3]
+                    # Compute metrics
+                    dist_error = torch.norm(predicted_node_pos-target_node_pos, dim=-1)
+                    mean_dist_error = torch.mean(dist_error, dim=-1).cpu().numpy().tolist()
+                    max_dist_error = torch.max(dist_error, dim=-1)[0].cpu().numpy().tolist()
+                    node_probs = self.contact_node[self.contact_node_sort].cpu().numpy().tolist()
+                    node_indices = self.contact_node_sort.cpu().numpy().tolist()
+                    data = {'mean_dist_error': mean_dist_error, 'max_dist_error': max_dist_error, 'node_probs': node_probs, 'node_indices': node_indices}
+                else:
+                    # Compute the maximum node distance between the predicted and target tree
+                    # and the maximum node displacement between the initial and target tree
+                    max_node_displacements = []
+                    max_node_dist_errors = []
+                    for i in range(self.num_envs):
+                        asset_rb_handles_dict = self.asset_rb_handles_dict_list[i]
+                        initial_tree_rb_handles = list(asset_rb_handles_dict['initial'].values())
+                        predicted_tree_rb_handles = list(asset_rb_handles_dict['predicted'].values())
+                        target_tree_rb_handles = list(asset_rb_handles_dict['final'].values())
+                        initial_node_pos = self.rigid_body_state[i, initial_tree_rb_handles, :3]
+                        predicted_node_pos = self.rigid_body_state[i, predicted_tree_rb_handles, :3]
+                        target_node_pos = self.rigid_body_state[i, target_tree_rb_handles, :3]
+                        node_dist_error = torch.norm(predicted_node_pos-target_node_pos, dim=-1)
+                        node_displacement = torch.norm(target_node_pos-initial_node_pos, dim=-1)
+                        max_node_displacement = torch.max(node_displacement).item()
+                        max_node_dist_error = torch.max(node_dist_error).item()
+                        max_node_displacements.append(max_node_displacement)
+                        max_node_dist_errors.append(max_node_dist_error)
+                    data = {'max_node_displacement': max_node_displacements, 'max_node_dist_error': max_node_dist_errors}
+                serialized_data = json.dumps(data)
                 print("DATA_START")
                 print(serialized_data)
                 print("DATA_END")
