@@ -431,6 +431,8 @@ class URDFVisualizer:
                     # and the maximum node displacement between the initial and target tree
                     max_node_displacements = []
                     max_node_dist_errors = []
+                    mean_node_displacements = []
+                    mean_node_dist_errors = []
                     for i in range(self.num_envs):
                         asset_rb_handles_dict = self.asset_rb_handles_dict_list[i]
                         initial_tree_rb_handles = list(asset_rb_handles_dict['initial'].values())
@@ -445,7 +447,12 @@ class URDFVisualizer:
                         max_node_dist_error = torch.max(node_dist_error).item()
                         max_node_displacements.append(max_node_displacement)
                         max_node_dist_errors.append(max_node_dist_error)
-                    data = {'max_node_displacement': max_node_displacements, 'max_node_dist_error': max_node_dist_errors}
+                        mean_node_displacement = torch.mean(node_displacement).item()
+                        mean_node_dist_error = torch.mean(node_dist_error).item()
+                        mean_node_displacements.append(mean_node_displacement)
+                        mean_node_dist_errors.append(mean_node_dist_error)
+                    data = {'max_node_displacement': max_node_displacements, 'max_node_dist_error': max_node_dist_errors,
+                            'mean_node_displacement': mean_node_displacements, 'mean_node_dist_error': mean_node_dist_errors}
                 serialized_data = json.dumps(data)
                 print("DATA_START")
                 print(serialized_data)

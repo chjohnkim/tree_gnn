@@ -59,7 +59,7 @@ if __name__ == '__main__':
     print(OmegaConf.to_yaml(cfg))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = LearnedPolicy(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
-    model.load_state_dict(torch.load(cfg.control_policy_ckpt_path))
+    model.load_state_dict(torch.load(cfg.contact_policy_ckpt_path))
     
     test_graph_list = []
     for test_data in cfg.test_data_name:
@@ -67,6 +67,10 @@ if __name__ == '__main__':
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
         test_graph_list += test_graphs[:len(test_graphs)//10]
+
+    if cfg.randomize_target:
+        test_graph_list = utils.set_random_target_configuration(test_graph_list)
+
     test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
     test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=1, shuffle=True)
     visualize(model, test_loader, device, cfg)

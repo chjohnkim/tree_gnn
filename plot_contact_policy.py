@@ -17,6 +17,8 @@ import torch_scatter
 def test(model, data_loader, device, cfg):
     max_node_dist_errors = []
     max_node_displacements = []
+    mean_node_dist_errors = []
+    mean_node_displacements = []
     model.eval()
     with torch.no_grad():
         with tqdm(data_loader) as tepoch:
@@ -83,29 +85,38 @@ def test(model, data_loader, device, cfg):
                     result = json.loads(serialized_data[start_idx:end_idx])
                 max_node_dist_errors+=result['max_node_dist_error']
                 max_node_displacements+=result['max_node_displacement']
-    return max_node_dist_errors, max_node_displacements
+                mean_node_dist_errors+=result['mean_node_dist_error']
+                mean_node_displacements+=result['mean_node_displacement']      
+    return max_node_dist_errors, max_node_displacements, mean_node_dist_errors, mean_node_displacements
 
 if __name__ == '__main__':
     
     cfg = OmegaConf.load('cfg/test_cfg.yaml')  
     print(OmegaConf.to_yaml(cfg))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     model = LearnedPolicy(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
-    model.load_state_dict(torch.load(cfg.control_policy_ckpt_path))
+    model.load_state_dict(torch.load(cfg.contact_policy_ckpt_path))
 
     max_node_dist_errors_per_tree_size = []
     max_node_displacements_per_tree_size = []
+    mean_node_displacements_per_tree_size = []
+    mean_node_dist_errors_per_tree_size = []
     for test_data in cfg.test_data_name:
         print(test_data)
         test_data_path = os.path.join(cfg.data_root, cfg.mode, test_data)
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
-        test_graph_list = test_graphs[:len(test_graphs)]
-        test_loader = utils.nx_to_pyg_dataloader(utils.preprocess_graphs_to_fully_connected(test_graph_list), 
-                                                        batch_size=cfg.test.batch_size, shuffle=False)
-        max_node_dist_errors, max_node_displacements = test(model, test_loader, device, cfg)
+        test_graph_list = test_graphs[:len(test_graphs)//10]
+        if cfg.randomize_target:
+            test_graph_list = utils.set_random_target_configuration(test_graph_list)
+        test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
+        test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=cfg.test.batch_size, shuffle=False)
+        max_node_dist_errors, max_node_displacements, mean_node_dist_errors, mean_node_displacements = test(model, test_loader, device, cfg)
         max_node_dist_errors_per_tree_size.append(max_node_dist_errors)
         max_node_displacements_per_tree_size.append(max_node_displacements)
+        mean_node_dist_errors_per_tree_size.append(mean_node_dist_errors)
+        mean_node_displacements_per_tree_size.append(mean_node_displacements)
     
     # Plot the two violin plots in the same plot
     first_node_size = 8 # TODO: Make this a parameter in the config file
@@ -117,7 +128,7 @@ if __name__ == '__main__':
     ax.set_xlabel('Number of nodes')
     ax.set_ylabel('Distance (m)')
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    legend_elements = [Line2D([0], [0], color='C0', label='Average distance of node with maximum ditsance between initial and final state'),
+    legend_elements = [Line2D([0], [0], color='C0', label='Average distance of node with maximum distance between initial and final state'),
                        Line2D([0], [0], color='C1', label='Average distance of node with maximum distance between predicted and final state')]
     ax.legend(handles=legend_elements, loc='upper left')
     # Set y axis limit
@@ -125,3 +136,16 @@ if __name__ == '__main__':
     plt.xticks(num_nodes)
     plt.show()
 
+    fig, ax = plt.subplots()
+    ax.violinplot(mean_node_displacements_per_tree_size, num_nodes, showmeans=True, showextrema=False, showmedians=False)
+    ax.violinplot(mean_node_dist_errors_per_tree_size, num_nodes, showmeans=True, showextrema=False, showmedians=False)
+    ax.set_xlabel('Number of nodes')
+    ax.set_ylabel('Distance (m)')
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    legend_elements = [Line2D([0], [0], color='C0', label='Mean distance of nodes between initial and final state'),
+                       Line2D([0], [0], color='C1', label='Mean distance of nodes between predicted and final state')]
+    ax.legend(handles=legend_elements, loc='upper left')
+    # Set y axis limit
+    ax.set_ylim(0, 1.0)
+    plt.xticks(num_nodes)
+    plt.show()

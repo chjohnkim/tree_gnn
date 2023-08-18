@@ -59,14 +59,13 @@ class LearnedSimulator(torch.nn.Module):
     def __init__(
         self,
         hidden_size,
-        num_IN_layers, # number of GNN layers
-        dim=3, # dimension of the world, typical 2D or 3D
+        num_IN_layers # number of GNN layers
     ):
         super().__init__()
         self.hidden_size = hidden_size
         self.node_in = MLP(4, hidden_size, hidden_size, 3) 
         self.edge_in = MLP(3, hidden_size, hidden_size, 3) 
-        self.node_out = MLP(hidden_size, hidden_size, dim, 3) 
+        self.node_out = MLP(hidden_size, hidden_size, 3, 3) 
 
         self.num_IN_layers = num_IN_layers
         self.IN_layers = torch.nn.ModuleList([InteractionNetwork(
@@ -101,8 +100,7 @@ class LearnedPolicy(torch.nn.Module):
     def __init__(
         self,
         hidden_size,
-        num_IN_layers, # number of GNN layers
-        dim=3, # dimension of the world, typical 2D or 3D
+        num_IN_layers # number of GNN layers
     ):
         super().__init__()
         self.hidden_size = hidden_size

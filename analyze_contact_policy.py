@@ -85,9 +85,11 @@ if __name__ == '__main__':
         test_graph_list += test_graphs[:len(test_graphs)//10]
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = LearnedPolicy(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
-    model.load_state_dict(torch.load(cfg.control_policy_ckpt_path))
-    test_loader = utils.nx_to_pyg_dataloader(utils.preprocess_graphs_to_fully_connected(test_graph_list), 
-                                                    batch_size=1, shuffle=True)
+    model.load_state_dict(torch.load(cfg.contact_policy_ckpt_path))
+    if cfg.randomize_target:
+        test_graph_list = utils.set_random_target_configuration(test_graph_list)
+    test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
+    test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=1, shuffle=True)
     node_probs, mean_dist_errors, max_dist_errors = visualize(model, test_loader, device, cfg)
     node_probs = np.array(node_probs).T.tolist()
     mean_dist_errors = np.array(mean_dist_errors).T.tolist()

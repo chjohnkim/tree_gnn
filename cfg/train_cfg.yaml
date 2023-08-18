@@ -1,7 +1,8 @@
 # used to create the object
-name: control_policy_gripper_trajectory_8k_10cm
+name: contact_policy_single_target_lam01
 device: cuda
 mode: 'gripper_contact' # virtual_force or gripper_contact
+fully_connected: True
 data_root: "data"
 train_data_name: [
                   "graph_list_10_nodes_8k.pkl",
@@ -29,4 +30,4 @@ model:
   hidden_size: 128
   num_IN_layers: 1
 logging:
-  wandb: False
+  wandb: True

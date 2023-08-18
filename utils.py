@@ -64,6 +64,22 @@ def tensor_to_nx(node_pos, edge_index, edge_stiffness):
         DiG.edges[edge]['stiffness'] = edge_stiffness[i]
     return DiG
 
+def preprocess_graphs_to_single_target(graph_list):
+    # For each graph, randomly select a node excluding root node
+    # Get the displacement between initial and final configuration and set it as a graph feature for target node displacement
+    # Add node feature to randomly selected node to indicate that it is the target node. 1 if target node, 0 otherwise
+    graph_list_new = [g.copy() for g in graph_list]
+    for g, g_new in tzip(graph_list, graph_list_new):
+        node_displacements = []
+        for node_idx in range(g.number_of_nodes()):
+            node_displacements.append(g.nodes[node_idx]['final_position'] - g.nodes[node_idx]['initial_position'])
+        node_distances = np.linalg.norm(node_displacements, axis=1)
+        target_node_idx = np.argmax(node_distances)
+        g_new.graph['target_node_delta'] = node_displacements[target_node_idx]
+        for node_idx in g.nodes:
+            g_new.nodes[node_idx]['target_node'] = 0
+        g_new.nodes[target_node_idx]['target_node'] = 1
+    return graph_list_new
 
 # Preprocess list of graphs to list of fully connected graphs
 def preprocess_graphs_to_fully_connected(graph_list):
@@ -106,6 +122,52 @@ def preprocess_graphs(graph_list):
                         g_new.edges[child, parent]['branch'] = 1
                         g_new.edges[child, parent]['stiffness'] = g.edges[parent, child]['stiffness']
                         g_new.edges[child, parent]['length'] = np.linalg.norm(g.nodes[child]['initial_position'] - g.nodes[parent]['initial_position']) 
+    return graph_list_new
+
+def set_random_target_configuration(graph_list):
+    '''
+    For each graph, randomly select a node exluding the root node. 
+    Find all descendents of the randomly selected node.
+    Arbitrarily set a reasonable displacement angle for the subtree rooted at the randomly selected node.
+    Set that as the new target configuration.
+    '''
+    graph_list_new = [g.copy() for g in graph_list]
+    for g, g_new in tzip(graph_list, graph_list_new):
+        random_root_node = np.random.randint(1, g.number_of_nodes())
+        parent_node = list(g.predecessors(random_root_node))[0]
+        # Get subtree nodes rooted at the randomly selected node
+        sub_tree_nodes = [random_root_node] + list(nx.descendants(g, random_root_node))
+        # Theta: Random angle between 0 and 20 degrees
+        theta = np.random.uniform(15, 30) * np.pi / 180
+        primary_vector = g.nodes[random_root_node]['initial_position'] - g.nodes[parent_node]['initial_position']
+        primary_vector_normalized = primary_vector / np.linalg.norm(primary_vector)
+        # Random orthogonal vector to primary_vector
+        secondary_vector = np.random.randn(3)
+        secondary_vector = secondary_vector - np.dot(secondary_vector, primary_vector_normalized) * primary_vector_normalized
+        secondary_vector_normalized = secondary_vector / np.linalg.norm(secondary_vector)
+        # Rotate primary_vector by theta degrees around secondary_vector
+        rotation_matrix = np.array([[np.cos(theta) + secondary_vector_normalized[0]**2 * (1 - np.cos(theta)),
+                                    secondary_vector_normalized[0] * secondary_vector_normalized[1] * (1 - np.cos(theta)) - secondary_vector_normalized[2] * np.sin(theta),
+                                    secondary_vector_normalized[0] * secondary_vector_normalized[2] * (1 - np.cos(theta)) + secondary_vector_normalized[1] * np.sin(theta)],
+                                    [secondary_vector_normalized[1] * secondary_vector_normalized[0] * (1 - np.cos(theta)) + secondary_vector_normalized[2] * np.sin(theta),
+                                    np.cos(theta) + secondary_vector_normalized[1]**2 * (1 - np.cos(theta)),
+                                    secondary_vector_normalized[1] * secondary_vector_normalized[2] * (1 - np.cos(theta)) - secondary_vector_normalized[0] * np.sin(theta)],
+                                    [secondary_vector_normalized[2] * secondary_vector_normalized[0] * (1 - np.cos(theta)) - secondary_vector_normalized[1] * np.sin(theta),
+                                    secondary_vector_normalized[2] * secondary_vector_normalized[1] * (1 - np.cos(theta)) + secondary_vector_normalized[0] * np.sin(theta),
+                                    np.cos(theta) + secondary_vector_normalized[2]**2 * (1 - np.cos(theta))]])        
+        for node_idx in g.nodes:
+            if node_idx in sub_tree_nodes:
+                # If node is in subtree, rotate it by theta degrees around secondary_vector
+                g_new.nodes[node_idx]['final_position'] = g.nodes[node_idx]['initial_position'] - g.nodes[parent_node]['initial_position']
+                g_new.nodes[node_idx]['final_position'] = np.dot(rotation_matrix, g_new.nodes[node_idx]['final_position'])
+                g_new.nodes[node_idx]['final_position'] = g_new.nodes[node_idx]['final_position'] + g.nodes[parent_node]['initial_position']
+                g_new.nodes[node_idx]['final_position'] = g_new.nodes[node_idx]['final_position'].astype(np.float32)
+            else:
+                g_new.nodes[node_idx]['final_position'] = g.nodes[node_idx]['initial_position']
+            # Set the contact_node to be node 0
+            g_new.nodes[node_idx]['contact_node'] = 1 if node_idx == 0 else 0
+        # Set contact force to be 0
+        g_new.graph['contact_force'] = np.zeros((3,)).astype(np.float32)
     return graph_list_new
 
 def from_networkx(

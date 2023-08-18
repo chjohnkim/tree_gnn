@@ -57,14 +57,17 @@ if __name__ == '__main__':
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
         test_graph_list += test_graphs[:len(test_graphs)//2]
+    if cfg.randomize_target:
+        test_graph_list = utils.set_random_target_configuration(test_graph_list)
+    test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
 
-    validate_loader = utils.nx_to_pyg_dataloader(utils.preprocess_graphs_to_fully_connected(test_graph_list), 
-                                                    batch_size=cfg.test.batch_size, shuffle=False)
+    validate_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=cfg.test.batch_size, shuffle=False)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+
     model = LearnedPolicy(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
-    model.load_state_dict(torch.load(cfg.control_policy_ckpt_path))
+    model.load_state_dict(torch.load(cfg.contact_policy_ckpt_path))
 
     criterion_reg = torch.nn.MSELoss()
     criterion_cls = torch.nn.CrossEntropyLoss()
