@@ -110,8 +110,7 @@ if __name__ == '__main__':
     # Plot the two violin plots in the same plot
     first_node_size = 8 # TODO: Make this a parameter in the config file
     num_nodes = np.arange(first_node_size,first_node_size+len(cfg.test_data_name))
-    print(len(max_node_displacements_per_tree_size))
-    print(len(num_nodes))
+
     fig, ax = plt.subplots()
     ax.violinplot(max_node_displacements_per_tree_size, num_nodes, showmeans=True, showextrema=False, showmedians=False)
     ax.violinplot(max_node_dist_errors_per_tree_size, num_nodes, showmeans=True, showextrema=False, showmedians=False)
