@@ -165,7 +165,7 @@ def set_random_target_configuration(graph_list):
             else:
                 g_new.nodes[node_idx]['final_position'] = g.nodes[node_idx]['initial_position']
             # Set the contact_node to be node 0
-            g_new.nodes[node_idx]['contact_node'] = 1 if node_idx == 0 else 0
+            g_new.nodes[node_idx]['contact_node'] = 1 if node_idx == random_root_node else 0
         # Set contact force to be 0
         g_new.graph['contact_force'] = np.zeros((3,)).astype(np.float32)
     return graph_list_new

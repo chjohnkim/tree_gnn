@@ -143,6 +143,46 @@ class LearnedPolicy(torch.nn.Module):
         
         return node_selection_logits.flatten(), contact_force
 
+class HeuristicBaseline(torch.nn.Module):
+    def __init__(self, mode):
+        super().__init__()
+        self.mode = mode # random, greedy, or root
+
+    def forward(self, data):
+        
+        # Compute contact trajectory first based on the actual displacement
+        node_displacement = data.final_position - data.initial_position
+        # Subtract the gripper palm protrusion
+        palm_protrusion = 0.02
+        # Get the distance of each vector
+        node_displacement_norm = torch.norm(node_displacement, dim=-1)
+        # Get the ratio of palm protrusion to contact force
+        palm_protrusion_ratio = palm_protrusion/node_displacement_norm
+        contact_trajectory = node_displacement*(1-palm_protrusion_ratio.unsqueeze(-1))
+
+        # Node selection methods
+        '''
+        # OPTION 1: Just get from ground truth
+        node_selection_onehot = data.contact_node
+        '''
+        if self.mode=='random':
+            # OPTION 2: Randomly select a node to be the contact node except the root node
+            # For each batch, randomly select a node to be the contact node except the root node using batch.data information
+            node_selection_onehot = torch.zeros_like(data.contact_node)
+            for i in range(torch.max(data.batch)+1):
+                # Get the indices of nodes that are not the root node
+                idx = torch.where(data.batch==i)[0]
+                idx = idx[idx!=0]
+                # Randomly select one node to be the contact node
+                node_selection_onehot[idx[torch.randint(0, len(idx), (1,))]] = 1
+        elif self.mode=='greedy':
+            # OPTION 3: Order it from the largest displaced node to the smallest
+            node_selection_onehot = node_displacement_norm    
+        elif self.mode=='root':
+            # OPTION 4: Always select the root node as the contact node. This is only for random target mode
+            node_selection_onehot = data.contact_node
+        return node_selection_onehot, contact_trajectory
+
 if __name__=='__main__':
     simulator = LearnedSimulator()
     print(simulator)

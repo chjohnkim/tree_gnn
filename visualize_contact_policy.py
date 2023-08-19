@@ -3,7 +3,7 @@ from omegaconf import OmegaConf
 import pickle
 import utils
 import torch
-from model import LearnedPolicy
+from model import LearnedPolicy, HeuristicBaseline
 import subprocess
 import tempfile
 import numpy as np 
@@ -24,13 +24,11 @@ def visualize(model, data_loader, device, cfg):
             print(f'            Ground Truth: {contact_node_gt.detach().cpu().numpy()}')
             print(f'Contact force - Predicted: {contact_force.flatten().detach().cpu().numpy()}')
             print(f'             Ground Truth: {contact_force_gt.flatten().detach().cpu().numpy()}')
-            
-            #prediction = (data.initial_position + out).cpu().numpy()
             initial_pos = data.initial_position.cpu().numpy()
             final_pos = data.final_position.cpu().numpy()
             edge_index = data.edge_index.T.cpu().numpy()
             edge_index = edge_index[(data.branch.cpu().numpy()==1) & (data.parent2child.cpu().numpy()==1)]
-    
+
             # Get the information on edge stiffness
             edge_stiffness = data.stiffness.cpu().numpy()
             edge_stiffness = edge_stiffness[(data.branch.cpu().numpy()==1) & (data.parent2child.cpu().numpy()==1)]
@@ -58,8 +56,11 @@ if __name__ == '__main__':
     cfg = OmegaConf.load('cfg/test_cfg.yaml')  
     print(OmegaConf.to_yaml(cfg))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = LearnedPolicy(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
-    model.load_state_dict(torch.load(cfg.contact_policy_ckpt_path))
+    if cfg.heuristic_baseline:
+        model = HeuristicBaseline(cfg.heuristic_baseline)
+    else:
+        model = LearnedPolicy(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
+        model.load_state_dict(torch.load(cfg.contact_policy_ckpt_path))
     
     test_graph_list = []
     for test_data in cfg.test_data_name:

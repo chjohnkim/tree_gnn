@@ -3,7 +3,7 @@ from omegaconf import OmegaConf
 import pickle
 import utils
 import torch
-from model import LearnedPolicy
+from model import LearnedPolicy, HeuristicBaseline
 import json
 import subprocess
 import tempfile
@@ -95,9 +95,12 @@ if __name__ == '__main__':
     print(OmegaConf.to_yaml(cfg))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    model = LearnedPolicy(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
-    model.load_state_dict(torch.load(cfg.contact_policy_ckpt_path))
-
+    if cfg.heuristic_baseline:
+        model = HeuristicBaseline(cfg.heuristic_baseline)
+    else:
+        model = LearnedPolicy(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
+        model.load_state_dict(torch.load(cfg.contact_policy_ckpt_path))
+    print(model)
     max_node_dist_errors_per_tree_size = []
     max_node_displacements_per_tree_size = []
     mean_node_displacements_per_tree_size = []
@@ -113,10 +116,11 @@ if __name__ == '__main__':
         test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
         test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=cfg.test.batch_size, shuffle=False)
         max_node_dist_errors, max_node_displacements, mean_node_dist_errors, mean_node_displacements = test(model, test_loader, device, cfg)
-        max_node_dist_errors_per_tree_size.append(max_node_dist_errors)
-        max_node_displacements_per_tree_size.append(max_node_displacements)
-        mean_node_dist_errors_per_tree_size.append(mean_node_dist_errors)
-        mean_node_displacements_per_tree_size.append(mean_node_displacements)
+
+        max_node_dist_errors_per_tree_size.append([x for x in max_node_dist_errors if str(x) != 'nan'])
+        max_node_displacements_per_tree_size.append([x for x in max_node_displacements if str(x) != 'nan'])
+        mean_node_dist_errors_per_tree_size.append([x for x in mean_node_dist_errors if str(x) != 'nan'])
+        mean_node_displacements_per_tree_size.append([x for x in mean_node_displacements if str(x) != 'nan'])
     
     # Plot the two violin plots in the same plot
     first_node_size = 8 # TODO: Make this a parameter in the config file
@@ -149,3 +153,13 @@ if __name__ == '__main__':
     ax.set_ylim(0, 1.0)
     plt.xticks(num_nodes)
     plt.show()
+
+    # Save plot data to pickle
+    plot_data = {'max_node_displacements_per_tree_size': max_node_displacements_per_tree_size,
+                 'max_node_dist_errors_per_tree_size': max_node_dist_errors_per_tree_size,  
+                 'mean_node_displacements_per_tree_size': mean_node_displacements_per_tree_size,
+                 'mean_node_dist_errors_per_tree_size': mean_node_dist_errors_per_tree_size,
+                 'num_nodes': num_nodes}
+    out_name = os.path.join('evaluation', f'{str(cfg.mode)}-baseline_{str(cfg.heuristic_baseline)}-randomized_target_{str(cfg.randomize_target)}.pkl')
+    with open(out_name, 'wb') as f:
+        pickle.dump(plot_data, f)
