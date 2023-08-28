@@ -5,7 +5,7 @@ import utils
 import copy
 from tqdm import tqdm
 import torch
-from model import LearnedPolicy
+from model import GNNSimulator, PointNet
 import torch_scatter
 import wandb
 import time
@@ -112,7 +112,7 @@ if __name__ == '__main__':
         train_data_path = os.path.join(cfg.data_root, cfg.mode, train_data)
         with open(train_data_path, 'rb') as f:
             train_graphs = pickle.load(f)
-        train_graph_list += train_graphs[:len(train_graphs)//4*3]
+        train_graph_list += train_graphs[:len(train_graphs)]
     test_graph_list = []
     for test_data in cfg.test_data_name:
         test_data_path = os.path.join(cfg.data_root, cfg.mode, test_data)
@@ -132,8 +132,12 @@ if __name__ == '__main__':
     validate_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=cfg.train.batch_size, shuffle=False)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    model = LearnedPolicy(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
+    if cfg.policy=='pointnet':
+        model = PointNet(forward_model=False).to(device)
+    elif cfg.policy=='gnn':
+        model = GNNSimulator(hidden_size=cfg.model.hidden_size, 
+                             num_IN_layers=cfg.model.num_IN_layers,
+                             forward_model=False).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.train.learning_rate)
     criterion_reg = torch.nn.MSELoss()

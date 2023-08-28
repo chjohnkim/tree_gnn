@@ -5,7 +5,7 @@ import utils
 import copy
 from tqdm import tqdm
 import torch
-from model import LearnedSimulator
+from model import GNNSimulator, PointNet
 import wandb
 import time
 
@@ -83,7 +83,7 @@ if __name__ == '__main__':
         train_data_path = os.path.join(cfg.data_root, cfg.mode, train_data)
         with open(train_data_path, 'rb') as f:
             train_graphs = pickle.load(f)
-        train_graph_list += train_graphs[:len(train_graphs)//4*3]
+        train_graph_list += train_graphs[:len(train_graphs)]
     test_graph_list = []
     for test_data in cfg.test_data_name:
         test_data_path = os.path.join(cfg.data_root, cfg.mode, test_data)
@@ -91,22 +91,23 @@ if __name__ == '__main__':
             test_graphs = pickle.load(f)
         test_graph_list += test_graphs[:len(test_graphs)//2]
 
-    fully_connected = True
-    if fully_connected:    
-        train_loader = utils.nx_to_pyg_dataloader(utils.preprocess_graphs_to_fully_connected(train_graph_list), 
-                                                  batch_size=cfg.train.batch_size)
-        validate_loader = utils.nx_to_pyg_dataloader(utils.preprocess_graphs_to_fully_connected(test_graph_list), 
-                                                     batch_size=cfg.train.batch_size, shuffle=False)
+    if cfg.fully_connected:    
+        train_graph_list = utils.preprocess_graphs_to_fully_connected(train_graph_list)
+        test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
     else:
-        train_loader = utils.nx_to_pyg_dataloader(utils.preprocess_graphs(train_graph_list), 
-                                                batch_size=cfg.train.batch_size)
-        validate_loader = utils.nx_to_pyg_dataloader(utils.preprocess_graphs(test_graph_list), 
-                                                    batch_size=cfg.train.batch_size, shuffle=False)
+        train_graph_list = utils.preprocess_graphs(train_graph_list)
+        test_graph_list = utils.preprocess_graphs(test_graph_list)
+    
+    train_loader = utils.nx_to_pyg_dataloader(train_graph_list, batch_size=cfg.train.batch_size, shuffle=True)
+    validate_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=cfg.train.batch_size, shuffle=False)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    model = LearnedSimulator(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
-    
+    if cfg.policy=='gnn':
+        model = GNNSimulator(hidden_size=cfg.model.hidden_size, 
+                             num_IN_layers=cfg.model.num_IN_layers,
+                             forward_model=True).to(device)
+    elif cfg.policy=='pointnet':
+        model = PointNet(forward_model=True).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.train.learning_rate)
     criterion = torch.nn.MSELoss()
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=50, factor=0.5, min_lr=5e-4)

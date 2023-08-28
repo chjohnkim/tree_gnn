@@ -3,7 +3,7 @@ from omegaconf import OmegaConf
 import pickle
 import utils
 import torch
-from model import LearnedSimulator
+from model import GNNSimulator, PointNet
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from matplotlib.lines import Line2D
@@ -46,8 +46,12 @@ if __name__ == '__main__':
     cfg = OmegaConf.load('cfg/test_cfg.yaml')  
     print(OmegaConf.to_yaml(cfg))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    model = LearnedSimulator(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
+    if cfg.policy=='gnn':
+        model = GNNSimulator(hidden_size=cfg.model.hidden_size, 
+                             num_IN_layers=cfg.model.num_IN_layers,
+                             forward_model=True).to(device)
+    elif cfg.policy=='pointnet':
+        model = PointNet(forward_model=True).to(device)
     # load checkpoint
     model.load_state_dict(torch.load(cfg.forward_model_ckpt_path))
     criterion = torch.nn.MSELoss()
@@ -64,7 +68,10 @@ if __name__ == '__main__':
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
         test_graphs = test_graphs[:len(test_graphs)]
-        test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graphs)
+        if cfg.fully_connected:
+            test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graphs)
+        else:
+            test_graph_list = utils.preprocess_graphs(test_graphs)
         test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=cfg.test.batch_size, shuffle=True)
         
         # Compute dataset stats
@@ -78,7 +85,7 @@ if __name__ == '__main__':
         
 
 
-        print(f'Finished evaluating {i}/{len(cfg.test_data_name)} graph lists.')
+        print(f'Finished evaluating {i+1}/{len(cfg.test_data_name)} graph lists.')
 
     # For each number of nodes, plot the violin plot of max distance displacement
     # Plot the two violin plots in the same plot

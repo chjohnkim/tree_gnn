@@ -53,3 +53,45 @@ if __name__ == '__main__':
     ax.set_ylim(cfg.y_axis_range[0], cfg.y_axis_range[1])
     plt.xticks(num_nodes)
     plt.show()
+
+    # Plot mean and max bar plot
+    fig, ax = plt.subplots()
+    for i, data_file in enumerate(cfg.data_files):
+        with open(data_file, 'rb') as f:
+            data = pickle.load(f)
+        num_nodes = data['num_nodes']
+        if i==0:
+            ax.bar(num_nodes, np.mean(data['max_node_displacements_per_tree_size'], axis=1), width=0.4, color=f'C{0}')
+        ax.bar(num_nodes, np.mean(data['max_node_dist_errors_per_tree_size'], axis=1), width=0.4, color=f'C{i+1}')
+    ax.set_xlabel('Number of nodes')
+    ax.set_ylabel('Distance (m)')
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    legend_elements = [Line2D([0], [0], color='C0', label='Average distance of node with maximum distance between initial and final state')]
+    for i, data_file in enumerate(cfg.data_files):
+        legend_elements.append(Line2D([0], [0], color=f'C{i+1}', label=f'\" predicted and final state: {data_file}'))
+    ax.legend(handles=legend_elements, loc='upper left')
+    # Set y axis limit
+    ax.set_ylim(cfg.y_axis_range[0], 0.3)
+    plt.xticks(num_nodes)
+    plt.show()
+
+    # Plot mean and max bar plot
+    fig, ax = plt.subplots()
+    for i, data_file in enumerate(cfg.data_files):
+        with open(data_file, 'rb') as f:
+            data = pickle.load(f)
+        num_nodes = data['num_nodes']
+        if i==0:
+            ax.bar(num_nodes, np.mean(data['mean_node_displacements_per_tree_size'], axis=1), width=0.4, color=f'C{0}')
+        ax.bar(num_nodes, np.mean(data['mean_node_dist_errors_per_tree_size'], axis=1), width=0.4, color=f'C{i+1}')
+    ax.set_xlabel('Number of nodes')
+    ax.set_ylabel('Distance (m)')
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    legend_elements = [Line2D([0], [0], color='C0', label='Mean distance of nodes between initial and final state')]
+    for i, data_file in enumerate(cfg.data_files):
+        legend_elements.append(Line2D([0], [0], color=f'C{i+1}', label=f'\" predicted and final state: {data_file}'))
+    ax.legend(handles=legend_elements, loc='upper left')
+    # Set y axis limit
+    ax.set_ylim(cfg.y_axis_range[0], 0.1)
+    plt.xticks(num_nodes)
+    plt.show()

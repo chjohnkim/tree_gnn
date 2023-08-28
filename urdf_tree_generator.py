@@ -5,7 +5,7 @@ import networkx as nx
 from scipy.spatial.transform import Rotation as R
 
 class URDFTreeGenerator(object):
-    def __init__(self, nx_graph, urdf_name, trunk_radius, asset_path):
+    def __init__(self, nx_graph, urdf_name, asset_path):
         
         # XML URDF initalization
         self.urdf = minidom.Document()
@@ -15,14 +15,14 @@ class URDFTreeGenerator(object):
         self.generate_color_definitions()
         self.nx_graph = nx_graph
         # Generate tree from graph
-        self.generate_tree(nx_graph, trunk_radius)
+        self.generate_tree(nx_graph)
 
         urdf_string = self.urdf.toprettyxml(indent='    ')
         self.save_file_name = urdf_name+'.urdf'
         with open(os.path.join(asset_path, self.save_file_name), "w") as f:
             f.write(urdf_string)
         
-    def generate_tree(self, nx_graph, trunk_radius):
+    def generate_tree(self, nx_graph):
 
         #edges, self.node_positions, edge_radii, _edge_length, edge_rpy = self._get_tree_info(nx_graph)
         edges = nx_graph.edges
@@ -45,22 +45,21 @@ class URDFTreeGenerator(object):
         edge_rpy = np.array(edge_rpy)
         
         # Compute edge radius
-        for edge in edges:
-            nx_graph.edges[edge]['weight'] = np.linalg.norm(nx_graph.nodes[edge[0]]['position'] - nx_graph.nodes[edge[1]]['position'])
+        #for edge in edges:
+        #    nx_graph.edges[edge]['weight'] = np.linalg.norm(nx_graph.nodes[edge[0]]['position'] - nx_graph.nodes[edge[1]]['position'])
         # Weight is equal to the length of the longest path in subtree rooted at edge parent node
         # radius = trunk_radius * (edge_weight / trunk_weight)
-        for edge_idx, edge in enumerate(edges):
-            if edge[0]==0:
-                nx_graph.edges[edge[0], edge[1]]['radius'] = trunk_radius
+        #for edge_idx, edge in enumerate(edges):
+        #    if edge[0]==0:
+        #        nx_graph.edges[edge[0], edge[1]]['radius'] = trunk_radius
 
-                path_lengths_dict = nx.shortest_path_length(nx_graph, source=edge[0], weight='weight') 
-                trunk_weight = max(path_lengths_dict.values())
-            else:
-
-                path_lengths_dict = nx.shortest_path_length(nx_graph, source=edge[0], weight='weight') 
-                edge_weight =  max(path_lengths_dict.values())
-                edge_radius = trunk_radius * (edge_weight / trunk_weight)
-                nx_graph.edges[edge[0], edge[1]]['radius'] = max([edge_radius, 0.01]) # TODO: Check if this is working
+        #        path_lengths_dict = nx.shortest_path_length(nx_graph, source=edge[0], weight='weight') 
+        #        trunk_weight = max(path_lengths_dict.values())
+        #    else:
+        #        path_lengths_dict = nx.shortest_path_length(nx_graph, source=edge[0], weight='weight') 
+        #        edge_weight =  max(path_lengths_dict.values())
+        #        edge_radius = trunk_radius * (edge_weight / trunk_weight)
+        #        nx_graph.edges[edge[0], edge[1]]['radius'] = max([edge_radius, 0.01]) # TODO: Check if this is working
         edge_radii = np.array([nx_graph.edges[edge]['radius'] for edge in edges])
         
         # Generate root node

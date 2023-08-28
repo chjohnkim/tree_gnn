@@ -3,7 +3,7 @@ from omegaconf import OmegaConf
 import pickle
 import utils
 import torch
-from model import LearnedPolicy
+from model import GNNSimulator, PointNet
 import subprocess
 import tempfile
 import numpy as np 
@@ -40,11 +40,13 @@ def visualize(model, data_loader, device, cfg):
                 # Get the information on edge stiffness
                 edge_stiffness = data.stiffness.cpu().numpy()
                 edge_stiffness = edge_stiffness[(data.branch.cpu().numpy()==1) & (data.parent2child.cpu().numpy()==1)]
+                edge_radius = data.radius.cpu().numpy()
+                edge_radius = edge_radius[(data.branch.cpu().numpy()==1) & (data.parent2child.cpu().numpy()==1)]
 
                 # Convert the nodes and edges to nx graph
-                g_prediction = utils.tensor_to_nx(initial_pos, edge_index, edge_stiffness)
-                g_initial = utils.tensor_to_nx(initial_pos, edge_index, edge_stiffness)
-                g_final = utils.tensor_to_nx(final_pos, edge_index, edge_stiffness)
+                g_prediction = utils.tensor_to_nx(initial_pos, edge_index, edge_stiffness, edge_radius)
+                g_initial = utils.tensor_to_nx(initial_pos, edge_index, edge_stiffness, edge_radius)
+                g_final = utils.tensor_to_nx(final_pos, edge_index, edge_stiffness, edge_radius)
 
                 # Serialize data to pass to URDF_visualizer.py
                 auto_close = 100
@@ -84,11 +86,20 @@ if __name__ == '__main__':
             test_graphs = pickle.load(f)
         test_graph_list += test_graphs[:len(test_graphs)//10]
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = LearnedPolicy(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
+    if cfg.policy=='gnn':
+        model = GNNSimulator(hidden_size=cfg.model.hidden_size, 
+                             num_IN_layers=cfg.model.num_IN_layers,
+                             forward_model=False).to(device)
+    elif cfg.policy=='pointnet':
+        model = PointNet(forward_model=False).to(device)
+    print(model)
     model.load_state_dict(torch.load(cfg.contact_policy_ckpt_path))
     if cfg.randomize_target:
         test_graph_list = utils.set_random_target_configuration(test_graph_list)
-    test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
+    if cfg.fully_connected:
+        test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
+    else:
+        test_graph_list = utils.preprocess_graphs(test_graph_list)
     test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=1, shuffle=True)
     node_probs, mean_dist_errors, max_dist_errors = visualize(model, test_loader, device, cfg)
     node_probs = np.array(node_probs).T.tolist()

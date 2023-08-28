@@ -3,7 +3,7 @@ from omegaconf import OmegaConf
 import pickle
 import utils
 import torch
-from model import LearnedSimulator
+from model import GNNSimulator, PointNet
 import subprocess
 import tempfile 
 
@@ -24,11 +24,13 @@ def visualize(model, data_loader, device, cfg):
             # Get the information on edge stiffness
             edge_stiffness = data.stiffness.cpu().numpy()
             edge_stiffness = edge_stiffness[(data.branch.cpu().numpy()==1) & (data.parent2child.cpu().numpy()==1)]
+            edge_radius = data.radius.cpu().numpy()
+            edge_radius = edge_radius[(data.branch.cpu().numpy()==1) & (data.parent2child.cpu().numpy()==1)]
 
             # Convert the nodes and edges to nx graph
-            g_prediction = utils.tensor_to_nx(prediction, edge_index, edge_stiffness)
-            g_initial = utils.tensor_to_nx(initial_pos, edge_index, edge_stiffness)
-            g_final = utils.tensor_to_nx(final_pos, edge_index, edge_stiffness)
+            g_prediction = utils.tensor_to_nx(prediction, edge_index, edge_stiffness, edge_radius)
+            g_initial = utils.tensor_to_nx(initial_pos, edge_index, edge_stiffness, edge_radius)
+            g_final = utils.tensor_to_nx(final_pos, edge_index, edge_stiffness, edge_radius)
             # Seriealize data to pass to URDF_visualizer.py
             #data = [g_initial, g_final, g_prediction, contact_node, contact_force]
             data = [[g_initial], [g_final], [g_prediction], contact_node.unsqueeze(0), contact_force.unsqueeze(0)]
@@ -51,9 +53,17 @@ if __name__ == '__main__':
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
         test_graph_list += test_graphs[:len(test_graphs)//10]
-    test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
+    if cfg.fully_connected:
+        test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
+    else:
+        test_graph_list = utils.preprocess_graphs(test_graph_list)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = LearnedSimulator(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
+    if cfg.policy=='gnn':
+        model = GNNSimulator(hidden_size=cfg.model.hidden_size, 
+                             num_IN_layers=cfg.model.num_IN_layers,
+                             forward_model=True).to(device)
+    elif cfg.policy=='pointnet':
+        model = PointNet(forward_model=True).to(device)
     model.load_state_dict(torch.load(cfg.forward_model_ckpt_path))
     
     test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=1, shuffle=True)

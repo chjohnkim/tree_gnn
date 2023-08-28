@@ -3,7 +3,7 @@ from omegaconf import OmegaConf
 import pickle
 import utils
 import torch
-from model import LearnedPolicy, HeuristicBaseline
+from model import GNNSimulator, HeuristicBaseline, PointNet
 import subprocess
 import tempfile
 import numpy as np 
@@ -29,19 +29,22 @@ def visualize(model, data_loader, device, cfg):
             edge_index = data.edge_index.T.cpu().numpy()
             edge_index = edge_index[(data.branch.cpu().numpy()==1) & (data.parent2child.cpu().numpy()==1)]
 
-            # Get the information on edge stiffness
+            # Get the information on edge stiffness and radius
             edge_stiffness = data.stiffness.cpu().numpy()
             edge_stiffness = edge_stiffness[(data.branch.cpu().numpy()==1) & (data.parent2child.cpu().numpy()==1)]
+            edge_radius = data.radius.cpu().numpy()
+            edge_radius = edge_radius[(data.branch.cpu().numpy()==1) & (data.parent2child.cpu().numpy()==1)]
 
             # print edge property stiffness from nx graph
             # Convert the nodes and edges to nx graph
-            g_prediction = utils.tensor_to_nx(initial_pos, edge_index, edge_stiffness)
-            g_initial = utils.tensor_to_nx(initial_pos, edge_index, edge_stiffness)
-            g_final = utils.tensor_to_nx(final_pos, edge_index, edge_stiffness)
+            g_prediction = utils.tensor_to_nx(initial_pos, edge_index, edge_stiffness, edge_radius)
+            g_initial = utils.tensor_to_nx(initial_pos, edge_index, edge_stiffness, edge_radius)
+            g_final = utils.tensor_to_nx(final_pos, edge_index, edge_stiffness, edge_radius)
             
             # Serialize data to pass to URDF_visualizer.py
             data = [[g_initial], [g_final], [g_prediction], 
-                    contact_node_gt.unsqueeze(0), contact_force_gt.unsqueeze(0), contact_node.unsqueeze(0), contact_force.unsqueeze(0)]
+                    contact_node_gt.unsqueeze(0), contact_force_gt.unsqueeze(0), contact_node_gt.unsqueeze(0), contact_force_gt.unsqueeze(0)]
+                    #contact_node_gt.unsqueeze(0), contact_force_gt.unsqueeze(0), contact_node.unsqueeze(0), contact_force.unsqueeze(0)]
             serialized_data = pickle.dumps(data)
             # Create temporary file to store serialized data
             with tempfile.NamedTemporaryFile(delete=True) as temp_file:
@@ -56,11 +59,16 @@ if __name__ == '__main__':
     cfg = OmegaConf.load('cfg/test_cfg.yaml')  
     print(OmegaConf.to_yaml(cfg))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    if cfg.heuristic_baseline:
-        model = HeuristicBaseline(cfg.heuristic_baseline)
-    else:
-        model = LearnedPolicy(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
+    if cfg.policy=='gnn':
+        model = GNNSimulator(hidden_size=cfg.model.hidden_size, 
+                             num_IN_layers=cfg.model.num_IN_layers,
+                             forward_model=False).to(device)
         model.load_state_dict(torch.load(cfg.contact_policy_ckpt_path))
+    elif cfg.policy=='pointnet':
+        model = PointNet(forward_model=False).to(device)
+        model.load_state_dict(torch.load(cfg.contact_policy_ckpt_path))        
+    else:
+        model = HeuristicBaseline(cfg.policy)
     
     test_graph_list = []
     for test_data in cfg.test_data_name:
@@ -71,8 +79,10 @@ if __name__ == '__main__':
 
     if cfg.randomize_target:
         test_graph_list = utils.set_random_target_configuration(test_graph_list)
-
-    test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
+    if cfg.fully_connected:
+        test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
+    else:
+        test_graph_list = utils.preprocess_graphs(test_graph_list)
     test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=1, shuffle=True)
     visualize(model, test_loader, device, cfg)
         

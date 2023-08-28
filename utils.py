@@ -30,7 +30,14 @@ def parse_urdf_graph(urdf_path):
     
     DiG = nx.DiGraph()
     DiG.add_edges_from(edge_list)
-
+    
+    for link in robot.links:
+        if link.name.startswith('link') and ('z' in link.name):
+            parent_node_idx = link.name.split('_')[1]
+            child_node_idx = link.name.split('_')[3]
+            DiG.edges[parent_node_idx, child_node_idx]['radius'] = link.collisions[0].geometry.cylinder.radius
+            DiG.edges[parent_node_idx, child_node_idx]['length'] = link.collisions[0].geometry.cylinder.length
+            
     for edge in edge_list:
         for joint in robot.joints:
             joint_name = f'joint_{edge[0]}_x_{edge[1]}'
@@ -47,7 +54,7 @@ def nx_to_pyg_dataloader(graph_list, batch_size, shuffle=True):
     data_loader = DataLoader(pyg_list, batch_size=batch_size, shuffle=shuffle)
     return data_loader
 
-def tensor_to_nx(node_pos, edge_index, edge_stiffness):
+def tensor_to_nx(node_pos, edge_index, edge_stiffness, edge_radius):
     '''
     Converts node_pos and edge_index to networkx DiGraph object
     '''
@@ -62,6 +69,7 @@ def tensor_to_nx(node_pos, edge_index, edge_stiffness):
     for i, edge in enumerate(DiG.edges):
         DiG.edges[edge]['length'] = np.linalg.norm(DiG.nodes[edge[1]]['position'] - DiG.nodes[edge[0]]['position'])
         DiG.edges[edge]['stiffness'] = edge_stiffness[i]
+        DiG.edges[edge]['radius'] = edge_radius[i]
     return DiG
 
 def preprocess_graphs_to_single_target(graph_list):
@@ -88,8 +96,10 @@ def preprocess_graphs_to_fully_connected(graph_list):
         for parent in g.nodes:
             for child in g.nodes:
                 if parent != child:
+                    # If edge already exists, do nothing
                     if g.has_edge(parent, child):
                         pass
+                    # If edge does not exist, add edge and populate features
                     else:
                         # Add edge and populate features
                         g_new.add_edge(parent, child)
@@ -99,7 +109,8 @@ def preprocess_graphs_to_fully_connected(graph_list):
                         g_new.edges[parent, child]['parent2child'] = 1 if nx.has_path(g, parent, child) else -1
                         g_new.edges[parent, child]['branch'] = 1 if g.has_edge(child, parent) else 0
                         g_new.edges[parent, child]['stiffness'] = g.edges[child, parent]['stiffness'] if g.has_edge(child, parent) else 0
-                    g_new.edges[parent, child]['length'] = np.linalg.norm(g.nodes[child]['initial_position'] - g.nodes[parent]['initial_position']) 
+                        g_new.edges[parent, child]['radius'] = 0 
+                        g_new.edges[parent, child]['length'] = np.linalg.norm(g.nodes[child]['initial_position'] - g.nodes[parent]['initial_position']) 
     return graph_list_new
 
 # Preprocess list of graphs to add edges from child to parent
@@ -111,8 +122,7 @@ def preprocess_graphs(graph_list):
                 if parent != child:
                     if g.has_edge(parent, child):
                         # Add edge feature to indicate that this edge is a branch
-                        g_new.edges[parent, child]['length'] = np.linalg.norm(g.nodes[child]['initial_position'] - g.nodes[parent]['initial_position']) 
-
+                        #g_new.edges[parent, child]['length'] = np.linalg.norm(g.nodes[child]['initial_position'] - g.nodes[parent]['initial_position']) 
                         # Add edge and populate features
                         g_new.add_edge(child, parent)
                         g_new.edges[child, parent]['initial_edge_delta'] = g.nodes[parent]['initial_position'] - g.nodes[child]['initial_position']
@@ -121,7 +131,8 @@ def preprocess_graphs(graph_list):
                         g_new.edges[child, parent]['parent2child'] = -1 
                         g_new.edges[child, parent]['branch'] = 1
                         g_new.edges[child, parent]['stiffness'] = g.edges[parent, child]['stiffness']
-                        g_new.edges[child, parent]['length'] = np.linalg.norm(g.nodes[child]['initial_position'] - g.nodes[parent]['initial_position']) 
+                        g_new.edges[child, parent]['radius'] = g.edges[parent, child]['radius']
+                        g_new.edges[child, parent]['length'] = g.edges[parent, child]['length'] 
     return graph_list_new
 
 def set_random_target_configuration(graph_list):

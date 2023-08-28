@@ -11,7 +11,7 @@ from copy import deepcopy
 class URDFVisualizer:
     def __init__(self, args, graph_initial, graph_final, graph_predicted, 
                  contact_node_gt, contact_force_gt, contact_node=None, contact_force=None, auto_close=np.inf):
-        
+        self.headless = False
         self.args = args
         self.graph_initial = graph_initial
         self.graph_final = graph_final
@@ -22,6 +22,9 @@ class URDFVisualizer:
         self.contact_force = contact_force
         
         self.mode = args.mode
+        self.begin_action_frame = 50
+        self.trajectory_length = 100
+        self.settling_length = auto_close 
         self.auto_close = auto_close
         
         self.use_gripper = self.mode=='gripper_contact' and self.contact_node is not None
@@ -58,15 +61,15 @@ class URDFVisualizer:
         self.assets_predicted = []
         self.DiGs_by_id = []
         for i in range(self.num_envs):
-            tree_urdf = URDFTreeGenerator(self.graph_initial[i], f'temp_tree_urdf', trunk_radius=self.args.trunk_radius, asset_path=self.asset_root)
+            tree_urdf = URDFTreeGenerator(self.graph_initial[i], f'temp_tree_urdf', asset_path=self.asset_root)
             DiG_by_id = utils.parse_urdf_graph(os.path.join(self.asset_root, tree_urdf.save_file_name))
             self.DiGs_by_id.append(DiG_by_id)
             self.assets_initial.append(self.load_asset(tree_urdf.save_file_name))
             
-            tree_urdf = URDFTreeGenerator(self.graph_final[i], f'temp_tree_urdf', trunk_radius=self.args.trunk_radius, asset_path=self.asset_root)
+            tree_urdf = URDFTreeGenerator(self.graph_final[i], f'temp_tree_urdf', asset_path=self.asset_root)
             self.assets_final.append(self.load_asset(tree_urdf.save_file_name))
             
-            tree_urdf = URDFTreeGenerator(self.graph_predicted[i], f'temp_tree_urdf', trunk_radius=self.args.trunk_radius, asset_path=self.asset_root)
+            tree_urdf = URDFTreeGenerator(self.graph_predicted[i], f'temp_tree_urdf', asset_path=self.asset_root)
             self.assets_predicted.append(self.load_asset(tree_urdf.save_file_name))
         self.create_env()
         self.create_viewer()
@@ -75,18 +78,28 @@ class URDFVisualizer:
     def initialize_sim(self):
         # configure sim
         sim_params = gymapi.SimParams()
-        sim_params.dt = dt = 1.0 / 60.0
         sim_params.up_axis = gymapi.UP_AXIS_Z
         sim_params.gravity.x = 0
         sim_params.gravity.y = 0
         sim_params.gravity.z = -9.81
-        sim_params.substeps = 1
+        sim_params.substeps = 2
         sim_params.physx.solver_type = 1
         sim_params.physx.num_position_iterations = 12
         sim_params.physx.num_velocity_iterations = 1
         sim_params.physx.num_threads = 4
         sim_params.physx.use_gpu = True
         sim_params.use_gpu_pipeline = True
+
+        #sim_params.dt = dt = 1.0 / 60.0
+        #sim_params.physx.contact_offset = 0.0
+        #sim_params.physx.rest_offset = 0.0
+        #sim_params.physx.bounce_threshold_velocity = 0.001
+        #sim_params.physx.max_depenetration_velocity = 0.001
+        #sim_params.physx.default_buffer_size_multiplier = 5.0
+        #sim_params.physx.max_gpu_contact_pairs = 1048576
+        #sim_params.physx.num_subscenes = 4
+        #sim_params.physx.contact_collection = 0
+        
         if self.args.use_gpu_pipeline:
             print("WARNING: Forcing CPU pipeline.")  
         self.device = self.args.sim_device if args.use_gpu_pipeline else 'cpu'
@@ -103,7 +116,10 @@ class URDFVisualizer:
         #camera_props.height = 1080
         #camera_props.supersampling_horizontal = 1
         #camera_props.supersampling_vertical = 1
+        camera_props.use_collision_geometry = True
         self.viewer = self.gym.create_viewer(self.sim, camera_props)
+        self.gym.subscribe_viewer_keyboard_event(self.viewer, gymapi.KEY_ESCAPE, "QUIT")
+
         if self.viewer is None:
             print("*** Failed to create viewer")
             quit()
@@ -117,19 +133,21 @@ class URDFVisualizer:
         #asset_file = urdf_tree.save_file_name
 
         asset_options = gymapi.AssetOptions()
-        asset_options.fix_base_link = True
-        asset_options.use_mesh_materials = True
         asset_options.flip_visual_attachments = True
+        asset_options.fix_base_link = True
         asset_options.disable_gravity = True
-        asset_options.thickness = 0.005
+        asset_options.thickness = 0.001
         asset_options.collapse_fixed_joints = False 
         asset_options.armature = 0.01
         asset_options.max_angular_velocity = 40.
         asset_options.max_linear_velocity = 100.
         asset_options.default_dof_drive_mode = gymapi.DOF_MODE_POS
-        asset_options.density = 500
+        asset_options.density = 1000
         asset_options.override_com = True
         asset_options.override_inertia = True
+        asset_options.vhacd_enabled = True
+        asset_options.replace_cylinder_with_capsule = True
+        asset_options.slices_per_cylinder = 100
 
         print("Loading asset '%s' from '%s'" % (asset_file, self.asset_root))
         asset = self.gym.load_asset(self.sim, self.asset_root, asset_file, asset_options)
@@ -147,26 +165,31 @@ class URDFVisualizer:
 
 
         asset_options = gymapi.AssetOptions()
-        asset_options.fix_base_link = True
-        asset_options.use_mesh_materials = True
         asset_options.flip_visual_attachments = True
+        asset_options.fix_base_link = True
         asset_options.disable_gravity = True
-        asset_options.thickness = 0.005
+        asset_options.thickness = 0.001
         asset_options.collapse_fixed_joints = False 
         asset_options.armature = 0.01
         asset_options.max_angular_velocity = 40.
         asset_options.max_linear_velocity = 100.
         asset_options.default_dof_drive_mode = gymapi.DOF_MODE_POS
-        asset_options.density = 500
+        asset_options.density = 1000
         asset_options.override_com = True
         asset_options.override_inertia = True
+        asset_options.vhacd_enabled = True
+        asset_options.replace_cylinder_with_capsule = False
+        asset_options.slices_per_cylinder = 100
         gripper_asset = self.gym.load_asset(self.sim, self.asset_root, os.path.join("assets", "zero_dof_gripper.urdf"), asset_options)
 
         # create an array of DOF states that will be used to update the actors
-        num_dofs = self.gym.get_asset_dof_count(self.assets_initial[0])
+        tree_num_dofs = self.gym.get_asset_dof_count(self.assets_initial[0])
         self.num_rigid_bodies = self.gym.get_asset_rigid_body_count(self.assets_initial[0])*3
         if self.use_gripper:
+            num_dofs = tree_num_dofs + self.gym.get_asset_dof_count(gripper_asset)
             self.num_rigid_bodies += self.gym.get_asset_rigid_body_count(gripper_asset)
+        else:
+            num_dofs = tree_num_dofs
 
 
         # get array of DOF properties
@@ -175,12 +198,21 @@ class URDFVisualizer:
             dof_props = self.gym.get_asset_dof_properties(tree_asset)
             dof_props["driveMode"].fill(gymapi.DOF_MODE_POS) 
             dof_props['effort'].fill(np.inf)
-            dof_props['velocity'].fill(9999999999)
+            dof_props['velocity'].fill(0.01)
             dof_props['armature'].fill(0.1)
-            for i in range(num_dofs):
+            for i in range(tree_num_dofs):
                 dof_props['stiffness'][i] = dof_props['friction'][i]    
             dof_props['friction'].fill(0.0)
             self.tree_dof_props_per_asset.append(dof_props)
+        # Setup gripper dof props
+        gripper_dof_props = self.gym.get_asset_dof_properties(gripper_asset)
+        gripper_dof_props["driveMode"].fill(gymapi.DOF_MODE_POS)
+        gripper_dof_props['effort'].fill(2000)
+        gripper_dof_props['velocity'].fill(0.05)
+        gripper_dof_props['armature'].fill(0.01)
+        gripper_dof_props['stiffness'].fill(100_000)
+        gripper_dof_props['damping'].fill(100)
+        gripper_dof_props['friction'].fill(0.0) 
 
         # set up the env grid
         if self.node_analysis:
@@ -237,6 +269,7 @@ class URDFVisualizer:
                 gripper_start_pose.p = gymapi.Vec3(0.0, 0.0, 0.0)
                 gripper_start_pose.r = gymapi.Quat(0.0, 0.0, 0.0, 1.0)
                 gripper_actor = self.gym.create_actor(env, gripper_asset, gripper_start_pose, "gripper", 2, 0, 0)
+                self.gym.set_actor_dof_properties(env, gripper_actor, gripper_dof_props)
                 self.grippers.append(gripper_actor)
         self.gym.prepare_sim(self.sim)
 
@@ -248,6 +281,11 @@ class URDFVisualizer:
         self.dof_state = gymtorch.wrap_tensor(dof_state_tensor)
         self.rigid_body_state = gymtorch.wrap_tensor(rigid_body_tensor).view(self.num_envs, -1, 13)
         self.root_state_tensor = gymtorch.wrap_tensor(actor_root_state_tensor).view(self.num_envs, -1, 13)
+
+        self.dof_pos = self.dof_state[:, 0].view(self.num_envs, -1, 1) # CHANGED
+        self.pos_action = torch.zeros_like(self.dof_pos, device=self.device) # CHANGED
+        # Default tree dof pos: tree is passive, hence the default dof pos is 0
+        self.tree_default_dof_pos = torch.zeros_like(self.dof_state, device=self.device)
 
         # Global inds
         self._global_indices = torch.arange(
@@ -305,11 +343,20 @@ class URDFVisualizer:
         contact_node_geom = gymutil.WireframeSphereGeometry(0.025, 10, 10, gymapi.Transform(), color=(1, 0, 0))
         contact_node_gt_geom = gymutil.WireframeSphereGeometry(0.02, 10, 10, gymapi.Transform(), color=(0, 1, 0))
         # variables to detect object penetration
-        begin_action_frame = 20
-        trajectory_num_waypoints = 100 if self.auto_close==np.inf else self.auto_close-begin_action_frame
+        #begin_action_frame = 20
+        #trajectory_num_waypoints = 100 if self.auto_close==np.inf else self.auto_close-begin_action_frame
         penetration_threshold = 10
         penetrated_env = torch.zeros((self.num_envs, ), dtype=torch.bool, device=self.device)
         while not self.gym.query_viewer_has_closed(self.viewer):
+            # check for keyboard events
+            for evt in self.gym.query_viewer_action_events(self.viewer):
+                if evt.action == "QUIT" and evt.value > 0:
+                    sys.exit()
+            # step the physics
+            self.gym.simulate(self.sim)
+            self.gym.fetch_results(self.sim, True)
+            self.refresh()
+
             if self.use_gripper:
                 if frame==0:
                     # Compute initial contact node position and parent node position
@@ -325,8 +372,7 @@ class URDFVisualizer:
                             parent_nodes.append(-1)
                         else: 
                             parent_nodes.append(int(next(self.DiGs_by_id[i].predecessors(str(contact_nodes[i].item())))))
-                    #parent_nodes = [int(next(self.DiGs_by_id[i%self.num_envs].predecessors(str(contact_nodes[i].item()))))  
-                    #    for i in range(self.num_envs)]
+                    
                     parent_node_positions = torch.stack([self.default_node_id2positions_list[i%self.num_envs][node_id] if node_id!=-1 
                                                          else torch.zeros((3,), dtype=torch.float32, device=self.device) 
                                                          for i, node_id in enumerate(parent_nodes)])
@@ -337,28 +383,31 @@ class URDFVisualizer:
                     trajectory_vector_norm = gripper_trajectory / torch.linalg.norm(gripper_trajectory, dim=-1, keepdim=True)   
                     trajectory_distance = torch.linalg.norm(gripper_trajectory, dim=-1, keepdim=True)
                     # Compute end-effector trajectory
-                    self.gripper_trajectory = torch.zeros((self.num_envs, trajectory_num_waypoints, 3), dtype=torch.float32, device=self.device, requires_grad=False)
+                    #self.gripper_trajectory = torch.zeros((self.num_envs, self.trajectory_length, 3), dtype=torch.float32, device=self.device, requires_grad=False)
                     # NOTE: Slightly offsetting along branch vector and force vector to avoid losing contact with branch
-                    self.gripper_trajectory[:, 0] = contact_node_positions - 0.01*branch_vectors_norm - 0.1*trajectory_vector_norm
+                    #self.gripper_trajectory[:, 0] = contact_node_positions - 0.01*branch_vectors_norm - 0.05*trajectory_vector_norm
 
-                    for i in range(1, trajectory_num_waypoints):
-                        self.gripper_trajectory[:, i] = self.gripper_trajectory[:, 0] + i*((0.1+trajectory_distance)*trajectory_vector_norm/trajectory_num_waypoints)
+                    #for i in range(1, self.trajectory_length):
+                    #    self.gripper_trajectory[:, i] = self.gripper_trajectory[:, 0] + i*((0.05+trajectory_distance)*trajectory_vector_norm/self.trajectory_length)
                     # Orient the end-effector such that z axis aligns with force vector
                     self.gripper_quat = utils.get_quat_from_vec(trajectory_vector_norm, branch_vectors_norm, gripper_axis='z')
-                multi_env_ids_int32 = self._global_indices[:, self.gripper_ind].flatten().contiguous()
+                
 
-                if frame<begin_action_frame:
-                    self.root_state_tensor[:, self.gripper_ind, :3] = self.gripper_trajectory[:, 0] 
-                elif frame<begin_action_frame+trajectory_num_waypoints:
-                    self.root_state_tensor[:, self.gripper_ind, :3] = self.gripper_trajectory[:, frame-begin_action_frame] 
-                else: 
-                    self.root_state_tensor[:, self.gripper_ind, :3] = self.gripper_trajectory[:, -1] 
-                self.root_state_tensor[:, self.gripper_ind, 3:7] = self.gripper_quat
+                    multi_env_ids_int32 = self._global_indices[:, self.gripper_ind].flatten().contiguous()
+                    #self.root_state_tensor[:, self.gripper_ind, :3] = self.gripper_trajectory[:, 0]
+                    self.root_state_tensor[:, self.gripper_ind, :3] = contact_node_positions - 0.01*branch_vectors_norm - 0.05*trajectory_vector_norm
+                    self.root_state_tensor[:, self.gripper_ind, 3:7] = self.gripper_quat
 
-                self.gym.set_actor_root_state_tensor_indexed(
-                    self.sim, gymtorch.unwrap_tensor(self.root_state_tensor),
-                    gymtorch.unwrap_tensor(multi_env_ids_int32), 
-                    len(multi_env_ids_int32))
+                    self.gym.set_actor_root_state_tensor_indexed(
+                        self.sim, gymtorch.unwrap_tensor(self.root_state_tensor),
+                        gymtorch.unwrap_tensor(multi_env_ids_int32), 
+                        len(multi_env_ids_int32))
+                    self.gym.set_dof_state_tensor(self.sim, gymtorch.unwrap_tensor(self.tree_default_dof_pos))
+                    self.gym.set_dof_position_target_tensor(self.sim, gymtorch.unwrap_tensor(torch.zeros_like(self.pos_action)))
+                elif frame > self.begin_action_frame and frame < self.begin_action_frame + self.trajectory_length:
+                    self.pos_action[:, -1] = (trajectory_distance+0.05)*(frame - self.begin_action_frame)/self.trajectory_length
+                    self.gym.set_dof_position_target_tensor(self.sim, gymtorch.unwrap_tensor(self.pos_action))
+                
 
             self.gym.clear_lines(self.viewer)
             for i in range(self.num_envs):
@@ -392,25 +441,24 @@ class URDFVisualizer:
                     num_lines = 1
                     self.gym.add_lines(self.viewer, self.envs[i], num_lines, line_vertices, line_color)
                     # Simulate predicted contact force deformation    
-                    if frame>begin_action_frame:
+                    if frame>self.begin_action_frame:
                         rb_force_tensor[i, self.asset_rb_handles_dict_list[i]['predicted'][contact_node[i].item()], :3] = contact_force[i]
 
-            self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(rb_force_tensor), None, gymapi.ENV_SPACE)
-            self.refresh()
+            if self.mode=='virtual_force':
+                self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(rb_force_tensor), None, gymapi.ENV_SPACE)
                 
-            # step the physics
-            self.gym.simulate(self.sim)
-            self.gym.fetch_results(self.sim, True)
-                
-            # update the viewer
-            self.gym.step_graphics(self.sim)
-            self.gym.draw_viewer(self.viewer, self.sim, True)
+            
+            if not self.headless:
+                # update the viewer
+                self.gym.step_graphics(self.sim)
+                self.gym.draw_viewer(self.viewer, self.sim, True)
+                # Wait for dt to elapse in real time.
+                # This synchronizes the physics simulation with the rendering rate.
+                self.gym.sync_frame_time(self.sim)
+            else: 
+                self.gym.poll_viewer_events(self.viewer)
 
-            # Wait for dt to elapse in real time.
-            # This synchronizes the physics simulation with the rendering rate.
-            self.gym.sync_frame_time(self.sim)
-            frame+=1
-            if frame>self.auto_close:
+            if frame>self.begin_action_frame + self.trajectory_length + self.settling_length:
                 import json
                 if self.node_analysis:
                     initial_tree_rb_handles = list(self.asset_rb_handles_dict_list[0]['initial'].values())
@@ -459,6 +507,8 @@ class URDFVisualizer:
                 print("DATA_END")
                 sys.stdout.flush()
                 break
+            else:
+                frame+=1
         self.destroy()
 
     def refresh(self):

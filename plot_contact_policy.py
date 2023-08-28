@@ -3,7 +3,7 @@ from omegaconf import OmegaConf
 import pickle
 import utils
 import torch
-from model import LearnedPolicy, HeuristicBaseline
+from model import GNNSimulator, HeuristicBaseline, PointNet
 import json
 import subprocess
 import tempfile
@@ -43,7 +43,7 @@ def test(model, data_loader, device, cfg):
                 # Get the information on edge stiffness
                 #edge_stiffness = data.stiffness.cpu().numpy()
                 edge_stiffness = data.stiffness[(data.branch==1) & (data.parent2child==1)]
-
+                edge_radius = data.radius[(data.branch==1) & (data.parent2child==1)]
                 # Convert the nodes and edges to nx graph
                 g_initials = []
                 g_finals = []
@@ -55,9 +55,10 @@ def test(model, data_loader, device, cfg):
                     edge_index_ = edge_index_ - torch.min(edge_index_) # Reindex the edge index so that it starts from 0
                     edge_index_ = edge_index_.cpu().numpy()
                     edge_stiffness_ = edge_stiffness[data.batch[edge_index[:,0]]==i].cpu().numpy()
-                    g_initials.append(utils.tensor_to_nx(initial_pos, edge_index_, edge_stiffness_))
-                    g_finals.append(utils.tensor_to_nx(final_pos, edge_index_, edge_stiffness_))            
-                    g_predictions.append(utils.tensor_to_nx(initial_pos, edge_index_, edge_stiffness_))
+                    edge_radius_ = edge_radius[data.batch[edge_index[:,0]]==i].cpu().numpy()
+                    g_initials.append(utils.tensor_to_nx(initial_pos, edge_index_, edge_stiffness_, edge_radius_))
+                    g_finals.append(utils.tensor_to_nx(final_pos, edge_index_, edge_stiffness_, edge_radius_))            
+                    g_predictions.append(utils.tensor_to_nx(initial_pos, edge_index_, edge_stiffness_, edge_radius_))
                     # Reindex contact_node_pred and contact_node_gt so that each graph starts from 0 based on the batch
                     contact_node_pred[i] = contact_node_pred[i] - torch.sum(data.batch<i)
                     contact_node_gt[i] = contact_node_gt[i] - torch.sum(data.batch<i)
@@ -65,6 +66,7 @@ def test(model, data_loader, device, cfg):
                 # Serialize data to pass to URDF_visualizer.py
                 auto_close = 100
                 data = [g_initials, g_finals, g_predictions, contact_node_gt, contact_force_gt, contact_node_pred, contact_force_pred, auto_close]
+                #data = [g_initials, g_finals, g_predictions, contact_node_gt, contact_force_gt, contact_node_gt, contact_force_gt, auto_close]
                 
                 serialized_data = pickle.dumps(data)
                 # Create temporary file to store serialized data
@@ -95,11 +97,16 @@ if __name__ == '__main__':
     print(OmegaConf.to_yaml(cfg))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    if cfg.heuristic_baseline:
-        model = HeuristicBaseline(cfg.heuristic_baseline)
-    else:
-        model = LearnedPolicy(hidden_size=cfg.model.hidden_size, num_IN_layers=cfg.model.num_IN_layers).to(device)
+    if cfg.policy=='gnn':
+        model = GNNSimulator(hidden_size=cfg.model.hidden_size, 
+                             num_IN_layers=cfg.model.num_IN_layers,
+                             forward_model=False).to(device)
         model.load_state_dict(torch.load(cfg.contact_policy_ckpt_path))
+    elif cfg.policy=='pointnet':
+        model = PointNet(forward_model=False).to(device)
+        model.load_state_dict(torch.load(cfg.contact_policy_ckpt_path))
+    else:
+        model = HeuristicBaseline(cfg.policy)
     print(model)
     max_node_dist_errors_per_tree_size = []
     max_node_displacements_per_tree_size = []
@@ -113,7 +120,10 @@ if __name__ == '__main__':
         test_graph_list = test_graphs[:len(test_graphs)//10]
         if cfg.randomize_target:
             test_graph_list = utils.set_random_target_configuration(test_graph_list)
-        test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
+        if cfg.fully_connected:
+            test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
+        else:
+            test_graph_list = utils.preprocess_graphs(test_graph_list)
         test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=cfg.test.batch_size, shuffle=False)
         max_node_dist_errors, max_node_displacements, mean_node_dist_errors, mean_node_displacements = test(model, test_loader, device, cfg)
 
@@ -123,7 +133,7 @@ if __name__ == '__main__':
         mean_node_displacements_per_tree_size.append([x for x in mean_node_displacements if str(x) != 'nan'])
     
     # Plot the two violin plots in the same plot
-    first_node_size = 8 # TODO: Make this a parameter in the config file
+    first_node_size = 10 # TODO: Make this a parameter in the config file
     num_nodes = np.arange(first_node_size,first_node_size+len(cfg.test_data_name))
 
     fig, ax = plt.subplots()
@@ -160,6 +170,6 @@ if __name__ == '__main__':
                  'mean_node_displacements_per_tree_size': mean_node_displacements_per_tree_size,
                  'mean_node_dist_errors_per_tree_size': mean_node_dist_errors_per_tree_size,
                  'num_nodes': num_nodes}
-    out_name = os.path.join('evaluation', f'{str(cfg.mode)}-baseline_{str(cfg.heuristic_baseline)}-randomized_target_{str(cfg.randomize_target)}.pkl')
+    out_name = os.path.join('evaluation', f'{str(cfg.mode)}-policy_{str(cfg.policy)}-randomized_target_{str(cfg.randomize_target)}.pkl')
     with open(out_name, 'wb') as f:
         pickle.dump(plot_data, f)
