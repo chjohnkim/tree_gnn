@@ -117,7 +117,7 @@ if __name__ == '__main__':
         test_data_path = os.path.join(cfg.data_root, cfg.mode, test_data)
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
-        test_graph_list = test_graphs[:len(test_graphs)//10]
+        test_graph_list = test_graphs[:len(test_graphs)]
         if cfg.randomize_target:
             test_graph_list = utils.set_random_target_configuration(test_graph_list)
         if cfg.fully_connected:

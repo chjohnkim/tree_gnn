@@ -102,7 +102,7 @@ if __name__ == '__main__':
     if cfg.logging.wandb:
         wandb.login()
         run = wandb.init(
-            project="tree_is_all_you_need_v2_cp",
+            project="Tree Contact Policy",
             name=cfg.name,
             config=OmegaConf.to_container(cfg)
         )

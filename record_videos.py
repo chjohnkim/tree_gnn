@@ -42,15 +42,16 @@ def visualize(model, data_loader, device, cfg):
             g_final = utils.tensor_to_nx(final_pos, edge_index, edge_stiffness, edge_radius)
             
             # Serialize data to pass to URDF_visualizer.py
+            auto_close = 100
             data = [[g_initial], [g_final], [g_prediction], 
-                    contact_node_gt.unsqueeze(0), contact_force_gt.unsqueeze(0), contact_node.unsqueeze(0), contact_force.unsqueeze(0)]
+                    contact_node_gt.unsqueeze(0), contact_force_gt.unsqueeze(0), contact_node.unsqueeze(0), contact_force.unsqueeze(0), auto_close]
                     #contact_node_gt.unsqueeze(0), contact_force_gt.unsqueeze(0), contact_node.unsqueeze(0), contact_force.unsqueeze(0)]
             serialized_data = pickle.dumps(data)
             # Create temporary file to store serialized data
             with tempfile.NamedTemporaryFile(delete=True) as temp_file:
                 temp_file.write(serialized_data)
                 # Launch URDF_visualizer.py and pass the temporary file name as argument
-                subprocess.run(['python', 'urdf_visualizer.py', '--temp_file', temp_file.name, '--mode', cfg.mode])
+                subprocess.run(['python', 'urdf_visualizer.py', '--temp_file', temp_file.name, '--mode', cfg.mode, '--record_video', str(1)])
             # Clean up the temporary file
             temp_file.close()
 
@@ -75,7 +76,7 @@ if __name__ == '__main__':
         test_data_path = os.path.join(cfg.data_root, cfg.mode, test_data)
         with open(test_data_path, 'rb') as f:
             test_graphs = pickle.load(f)
-        test_graph_list += test_graphs[:len(test_graphs)//10]
+        test_graph_list += test_graphs[:len(test_graphs)//100]
 
     if cfg.randomize_target:
         test_graph_list = utils.set_random_target_configuration(test_graph_list)
@@ -83,7 +84,7 @@ if __name__ == '__main__':
         test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
     else:
         test_graph_list = utils.preprocess_graphs(test_graph_list)
-    test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=1, shuffle=True)
+    test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=1, shuffle=False)
     visualize(model, test_loader, device, cfg)
         
 

@@ -9,46 +9,32 @@ data_root: "data"
 test_data_name:  [
                   'graph_list_test_10_nodes_1k.pkl',
                   'graph_list_test_11_nodes_1k.pkl',
-                  #'graph_list_test_12_nodes_1k.pkl',
-                  #'graph_list_test_13_nodes_1k.pkl',
-                  #'graph_list_test_14_nodes_1k.pkl',
-                  #'graph_list_test_15_nodes_1k.pkl',
-                  #'graph_list_test_16_nodes_1k.pkl',
-                  #'graph_list_test_17_nodes_1k.pkl',
-                  #'graph_list_test_18_nodes_1k.pkl',
-                  #'graph_list_test_19_nodes_1k.pkl',
-                  #'graph_list_test_20_nodes_1k.pkl',
-                  #'graph_list_test_21_nodes_1k.pkl',
-                  #'graph_list_test_22_nodes_1k.pkl',
-                  #'graph_list_test_23_nodes_1k.pkl',
-                  #'graph_list_test_24_nodes_1k.pkl',
-                  #'graph_list_test_25_nodes_1k.pkl',
-                  #'graph_list_test_26_nodes_1k.pkl',
-                  #'graph_list_test_27_nodes_1k.pkl',
-                  #'graph_list_test_28_nodes_1k.pkl',
-                  #'graph_list_test_29_nodes_1k.pkl',
-                  #'graph_list_test_30_nodes_1k.pkl',
+                  'graph_list_test_12_nodes_1k.pkl',
+                  'graph_list_test_13_nodes_1k.pkl',
+                  'graph_list_test_14_nodes_1k.pkl',
+                  'graph_list_test_15_nodes_1k.pkl',
+                  'graph_list_test_16_nodes_1k.pkl',
+                  'graph_list_test_17_nodes_1k.pkl',
+                  'graph_list_test_18_nodes_1k.pkl',
+                  'graph_list_test_19_nodes_1k.pkl',
+                  'graph_list_test_20_nodes_1k.pkl',
+                  'graph_list_test_21_nodes_1k.pkl',
+                  'graph_list_test_22_nodes_1k.pkl',
+                  'graph_list_test_23_nodes_1k.pkl',
+                  'graph_list_test_24_nodes_1k.pkl',
+                  'graph_list_test_25_nodes_1k.pkl',
+                  'graph_list_test_26_nodes_1k.pkl',
+                  'graph_list_test_27_nodes_1k.pkl',
+                  'graph_list_test_28_nodes_1k.pkl',
+                  'graph_list_test_29_nodes_1k.pkl',
+                  'graph_list_test_30_nodes_1k.pkl',
                   ]
-# Virtual Force
-#forward_model_ckpt_path: "runs/20230815_195014_forward_model_with_stiffness/best_model.pt"
-#contact_policy_ckpt_path: "runs/20230816_100222_control_policy_final/best_model.pt"
-# Gripper Trajectory
-#forward_model_ckpt_path: "runs/20230816_170955_control_policy_gripper_trajectory_8k_10cm/best_model.pt"
-#forward_model_ckpt_path: "runs/20230823_142829_gripper_contact_final/best_model.pt"
-#contact_policy_ckpt_path: "runs/20230821_112641_contact_policy_final_5-15cm/best_model.pt"
-# PointNet
-#forward_model_ckpt_path: "runs/20230823_141050_PointNet/best_model.pt"
-#contact_policy_ckpt_path: "runs/20230823_150447_PointNet/best_model.pt"
-# GEN3 Trees GNN
-#contact_policy_ckpt_path: "runs/20230827_171712_gen4_GNN/best_model.pt"
-# GEN3 Trees PointNet
-#contact_policy_ckpt_path: "runs/20230827_202817_gen4_PointNet/best_model.pt"
 # Pointnet
 #forward_model_ckpt_path: "runs/20230827_232920_PointNet/best_model.pt"
-#contact_policy_ckpt_path: "runs/20230827_224110_POINTNET/best_model.pt"
+#contact_policy_ckpt_path: "runs/20230828_220011_pointnet/best_model.pt"
 # GNN
 forward_model_ckpt_path: "runs/20230827_231059_GNN/best_model.pt"
-contact_policy_ckpt_path: "runs/20230827_220303_GNN/best_model.pt"
+contact_policy_ckpt_path: "runs/20230828_210611_GNN/best_model.pt"
 
 
 model:

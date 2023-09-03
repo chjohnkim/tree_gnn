@@ -29,7 +29,6 @@ class DataCollectionGym:
     def __init__(self, cfg):
         # initialize gym
         self.gym = gymapi.acquire_gym()
-
         # Load some config file parameters
         self.cfg = cfg
         self.headless = self.cfg.task.headless
@@ -58,6 +57,28 @@ class DataCollectionGym:
             self.DiGs_by_id.append(DiG_by_id)
             edge_tensor = torch.Tensor([[int(parent), int(child)] for parent, child in DiG_by_id.edges()]).long() # shape: (num_edges, 2) 
             self.edge_tensor_list.append(edge_tensor)
+
+        # TESTING
+        #min_per_tree = []
+        #max_per_tree = []
+        #mean_per_tree = []
+        #minr_per_tree = []
+        #maxr_per_tree = []
+        #meanr_per_tree = []
+        #for g in self.DiGs_by_id:
+        #    stiffness = nx.get_edge_attributes(g, 'stiffness').values()
+        #    min_per_tree.append(min(stiffness))
+        #    max_per_tree.append(max(stiffness))
+        #    mean_per_tree.append(sum(stiffness)/len(stiffness))
+        #    radius = nx.get_edge_attributes(g, 'radius').values()
+        #    minr_per_tree.append(min(radius))
+        #    maxr_per_tree.append(max(radius))
+        #    meanr_per_tree.append(sum(radius)/len(radius))
+        #print('asset type', self.tree_urdf_paths)
+        #print('min per tree:', min(min_per_tree),'-', max(min_per_tree),';', min(minr_per_tree),'-', max(minr_per_tree))
+        #print('max per tree:', min(max_per_tree),'-', max(max_per_tree),';', min(maxr_per_tree),'-', max(maxr_per_tree))
+        #print('mean per tree:', min(mean_per_tree),'-', max(mean_per_tree), ';', min(meanr_per_tree),'-', max(meanr_per_tree))
+        #import sys; sys.exit()
         # Initialize tree graph information
         self.num_nodes = self.DiGs_by_id[0].number_of_nodes() # Including root node (0)
         self.num_edges = self.DiGs_by_id[0].number_of_edges()
@@ -70,14 +91,17 @@ class DataCollectionGym:
         actor_root_state_tensor = self.gym.acquire_actor_root_state_tensor(self.sim)
         dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)
         rigid_body_tensor = self.gym.acquire_rigid_body_state_tensor(self.sim)
-                
+        rb_contact_force_tensor = self.gym.acquire_net_contact_force_tensor(self.sim)
+        rb_contact_force_tensor = gymtorch.wrap_tensor(rb_contact_force_tensor)
+        self.rb_contact_force = rb_contact_force_tensor.view(self.num_envs, -1, 3)
+
         # Dof state slices
         self.dof_state = gymtorch.wrap_tensor(dof_state_tensor)
         self.tree_dof_state = self.dof_state.view(self.num_envs, -1, 2)
 
         self.dof_pos = self.dof_state[:, 0].view(self.num_envs, -1, 1) # CHANGED
         self.pos_action = torch.zeros_like(self.dof_pos, device=self.device).squeeze(-1) # CHANGED
-
+    
         # Default tree dof pos: tree is passive, hence the default dof pos is 0
         self.tree_default_dof_pos = torch.zeros_like(self.dof_state, device=self.device)
 
@@ -99,7 +123,8 @@ class DataCollectionGym:
         self.gym.refresh_actor_root_state_tensor(self.sim) 
         self.gym.refresh_dof_state_tensor(self.sim) 
         self.gym.refresh_rigid_body_state_tensor(self.sim) 
-        
+        self.gym.refresh_net_contact_force_tensor(self.sim)
+
         # Had to make it into function because indexing seems to make copy instead of reference
         node_id2positions = self.get_node_id2positions()
         
@@ -134,7 +159,9 @@ class DataCollectionGym:
         sim_params.physx.num_velocity_iterations = self.cfg["sim"]["physx"]["num_velocity_iterations"]
         sim_params.physx.num_threads = self.cfg["sim"]["physx"]["num_threads"]
         sim_params.physx.use_gpu = self.cfg["sim"]["physx"]["use_gpu"]
-
+        sim_params.physx.rest_offset = 0.0
+        sim_params.physx.contact_offset = 0.0005
+        sim_params.physx.contact_collection = gymapi.ContactCollection(2)
         sim_params.use_gpu_pipeline = self.cfg["sim"]["use_gpu_pipeline"]
         args = gymutil.parse_arguments()
         self.device = args.sim_device if args.use_gpu_pipeline else 'cpu'
@@ -193,7 +220,7 @@ class DataCollectionGym:
         self.num_tree_dofs = self.gym.get_asset_dof_count(tree_asset)
         self.num_dofs = self.num_tree_dofs + self.gym.get_asset_dof_count(gripper_asset) # CHANGED
 
-        print("num tree bodies: ", self.num_bodies)
+        print("num bodies: ", self.num_bodies)
         print("num tree dofs: ", self.num_tree_dofs)
 
         self.tree_dof_props_per_asset = []
@@ -230,9 +257,9 @@ class DataCollectionGym:
         # compute aggregate size, results in error if incorrect
         num_tree_bodies = self.gym.get_asset_rigid_body_count(tree_asset)
         num_tree_shapes = self.gym.get_asset_rigid_shape_count(tree_asset)
-        num_gripper_bodies = self.gym.get_asset_rigid_body_count(gripper_asset)
+        self.num_gripper_bodies = self.gym.get_asset_rigid_body_count(gripper_asset)
         num_gripper_shapes = self.gym.get_asset_rigid_shape_count(gripper_asset)
-        self.max_agg_bodies =  num_tree_bodies + num_gripper_bodies
+        self.max_agg_bodies =  num_tree_bodies + self.num_gripper_bodies
         max_agg_shapes =  num_tree_shapes + num_gripper_shapes
         
         # Cache actors and envs
@@ -256,7 +283,7 @@ class DataCollectionGym:
             self.gym.set_actor_dof_properties(env_ptr, tree_actor, self.tree_dof_props_per_asset[i%self.num_tree_types])
             
             # Create robot actor
-            gripper_actor = self.gym.create_actor(env_ptr, gripper_asset, gripper_start_pose, "gripper", i, 0, 0)
+            gripper_actor = self.gym.create_actor(env_ptr, gripper_asset, gripper_start_pose, "gripper", i, 0, 0) # TODO: Change collision group back
             self.gym.set_actor_dof_properties(env_ptr, gripper_actor, gripper_dof_props)
             
             self.gym.end_aggregate(env_ptr)
@@ -289,26 +316,17 @@ class DataCollectionGym:
             self.gym.refresh_rigid_body_state_tensor(self.sim)
             self.gym.refresh_dof_state_tensor(self.sim)
             self.gym.refresh_rigid_body_state_tensor(self.sim) 
-
+            self.gym.refresh_net_contact_force_tensor(self.sim)
+            
+            #print(self.dof_state[:, 0].view(self.num_envs, -1)[:,:(self.num_nodes-1)*3].sum())
+            #print(self.dof_state[:, 1].view(self.num_envs, -1)[])
+            
             # RESET
             if frame_count==0: # CHANGED
                 # Reset all environments
                 #self.gym.set_dof_state_tensor(self.sim, gymtorch.unwrap_tensor(self.tree_default_dof_pos))
                 # Randomly generate contact node based on num_nodes using numpy
                 contact_nodes = np.random.randint(low=1, high=self.num_nodes, size=(self.num_envs, ))
-                # Generate random trajectory vector to be applied on contact node between (-1, 1)
-                scale_min =self.cfg["env"]["trajectoryScale"][0]
-                scale_max =self.cfg["env"]["trajectoryScale"][1]
-                trajectory_distance = torch.rand((self.num_envs, ), device=self.device)*(scale_max-scale_min) + scale_min
-                t_x = torch.rand((self.num_envs, ), device=self.device)*2 - 1
-                t_y = torch.rand((self.num_envs, ), device=self.device)*2 - 1
-                t_z = torch.rand((self.num_envs, ), device=self.device)*2 - 1
-                # Concatenate force vector
-                trajectory_vector = torch.stack((t_x, t_y, t_z), dim=-1)
-                # Normalize force vector
-                trajectory_vector_norm = trajectory_vector/torch.linalg.norm(trajectory_vector, dim=-1, keepdim=True)
-                trajectory_vector = trajectory_distance.unsqueeze(-1)*trajectory_vector_norm
-
                 # Compute initial contact node position and parent node position
                 parent_nodes = [int(next(self.DiGs_by_id[i%self.num_tree_types].predecessors(str(contact_nodes[i]))))  
                     for i in range(self.num_envs)]
@@ -318,6 +336,34 @@ class DataCollectionGym:
                 branch_vectors = contact_node_positions - parent_node_positions
                 branch_vectors_norm = branch_vectors/torch.linalg.norm(branch_vectors, dim=-1, keepdim=True)
                 
+                # Generate random trajectory vector to be applied on contact node 
+                scale_min =self.cfg["env"]["trajectoryScale"][0]
+                scale_max =self.cfg["env"]["trajectoryScale"][1]
+                trajectory_distance = torch.rand((self.num_envs, ), device=self.device)*(scale_max-scale_min) + scale_min
+                # Random trajectory vector
+                t_x = torch.rand((self.num_envs, ), device=self.device)*2 - 1
+                t_y = torch.rand((self.num_envs, ), device=self.device)*2 - 1
+                t_z = torch.rand((self.num_envs, ), device=self.device)*2 - 1
+                trajectory_vector = torch.stack((t_x, t_y, t_z), dim=-1)
+                # Project trajectory vector to be orthogonal to branch vector
+                trajectory_vector = trajectory_vector - torch.sum(trajectory_vector*branch_vectors_norm, dim=-1, keepdim=True)*branch_vectors_norm
+                trajectory_vector_norm = trajectory_vector/torch.linalg.norm(trajectory_vector, dim=-1, keepdim=True)
+                # Apply random tilt to the trajectory vector with respect to the plane perpendicular to the branch vector
+                # Random tilt angle constrained to be between +-20 degrees
+                random_tilt_angle = (torch.rand((self.num_envs, ), device=self.device)*90 - 45)*3.1415/180
+                # Compute axis_angle representation of rotation
+                rotation_axis = torch.cross(branch_vectors_norm, trajectory_vector_norm, dim=-1)
+                rotation_axis_norm = rotation_axis/torch.linalg.norm(rotation_axis, dim=-1, keepdim=True)
+                axis_angle = rotation_axis_norm * random_tilt_angle.unsqueeze(-1)
+                # Compute rotation matrix
+                rotation_matrix = utils.axis_angle_to_matrix(axis_angle)
+                # Rotate trajectory vector
+                trajectory_vector = torch.bmm(rotation_matrix, trajectory_vector.unsqueeze(-1)).squeeze(-1)
+                # Normalize trajectory vector
+                trajectory_vector_norm = trajectory_vector/torch.linalg.norm(trajectory_vector, dim=-1, keepdim=True)
+                trajectory_vector = trajectory_distance.unsqueeze(-1)*trajectory_vector_norm
+
+
                 # Compute end-effector trajectory
                 #self.gripper_trajectory = torch.zeros((self.num_envs, self.trajectory_length, 3), dtype=torch.float32, device=self.device, requires_grad=False)
                 # NOTE: Slightly offsetting along branch vector and force vector to avoid losing contact with branch
@@ -346,7 +392,10 @@ class DataCollectionGym:
             penetrated_env = torch.logical_or(penetrated_env, self.tree_dof_state[:, :-1, 1].abs().max(dim=-1)[0]>penetration_threshold) # CHANGED -1
 
             if frame_count==self.begin_action_frame-1:
+                # Record initial state
                 initial_node_position = self.compute_observations()
+                # Record those that are in contact with the gripper
+                initial_in_contact = self.rb_contact_force[:, -self.num_gripper_bodies:].abs().sum(dim=-1).sum(dim=-1) > 0.0 
                 if not self.headless:
                     for env_id in range(self.num_envs):
                         # determine contact node position
@@ -375,10 +424,20 @@ class DataCollectionGym:
                     self.gym.clear_lines(self.viewer)
                 frame_count = 0
                 final_node_position = self.compute_observations()
+                # If the gripper is not in contact with the tree, exclude from data
+                final_not_in_contact = self.rb_contact_force[:, -self.num_gripper_bodies:].abs().sum(dim=-1).sum(dim=-1) == 0.0
                 # If initial position and final position is the same, exclude from data
-                displacement = torch.linalg.norm(initial_node_position - final_node_position, dim=-1)                 
-                penetrated_env = torch.logical_or(penetrated_env, torch.all(displacement<0.01, dim=-1))
-
+                print('-----------------------------------------------')
+                #print('fast dof:', penetrated_env.sum().item())
+                #displacement = torch.linalg.norm(initial_node_position - final_node_position, dim=-1)                 
+                #print('tree not moving:', torch.all(displacement<0.01, dim=-1).sum().item())
+                #penetrated_env = torch.logical_or(penetrated_env, torch.all(displacement<0.01, dim=-1))
+                #print('num_tree out:', penetrated_env.sum().item())
+                print(f'fast dof {penetrated_env.sum().item()}')
+                penetrated_env = torch.logical_or(penetrated_env, initial_in_contact)
+                print(f'initial contact {initial_in_contact.sum().item()}')
+                penetrated_env = torch.logical_or(penetrated_env, final_not_in_contact)
+                print(f'final contact {final_not_in_contact.sum().item()}')
                 # Compile to graph
                 graphs = self.compile_to_graph(initial_node_position, final_node_position, contact_nodes, trajectory_vector)
                 # Exclude the environments that have penetrated the tree

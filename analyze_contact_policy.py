@@ -109,6 +109,17 @@ if __name__ == '__main__':
 
     num_nodes = test_graphs[0].number_of_nodes()
     node_order = np.arange(1, num_nodes+1)
+
+    plot_data = {'node_order': node_order,
+                 'node_probs': node_probs,
+                 'max_dist_errors': max_dist_errors,  
+                 'mean_dist_errors': mean_dist_errors,}
+    
+    out_name = os.path.join('evaluation', f'analysis_{str(cfg.mode)}-policy_{str(cfg.policy)}-randomized_target_{str(cfg.randomize_target)}.pkl')
+    with open(out_name, 'wb') as f:
+        pickle.dump(plot_data, f)
+
+
     # Make violin plot of node selection probabilities
     fig, ax = plt.subplots()
     ax.violinplot(node_probs, node_order, showmeans=True, showextrema=False, showmedians=False)

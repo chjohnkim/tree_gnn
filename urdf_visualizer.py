@@ -7,6 +7,9 @@ from isaacgym import gymapi, gymutil, gymtorch
 import torch
 import utils
 from copy import deepcopy
+import cv2
+import pyautogui
+import time
 
 class URDFVisualizer:
     def __init__(self, args, graph_initial, graph_final, graph_predicted, 
@@ -88,6 +91,8 @@ class URDFVisualizer:
         sim_params.physx.num_velocity_iterations = 1
         sim_params.physx.num_threads = 4
         sim_params.physx.use_gpu = True
+        sim_params.physx.rest_offset = 0.0
+        sim_params.physx.contact_offset = 0.0005
         sim_params.use_gpu_pipeline = True
 
         #sim_params.dt = dt = 1.0 / 60.0
@@ -347,6 +352,19 @@ class URDFVisualizer:
         #trajectory_num_waypoints = 100 if self.auto_close==np.inf else self.auto_close-begin_action_frame
         penetration_threshold = 10
         penetrated_env = torch.zeros((self.num_envs, ), dtype=torch.bool, device=self.device)
+        
+        if self.args.record_video:
+            left, top, width, height = 470, 112, 840, 840 #self.gym.get_viewer_size(self.viewer).x, self.gym.get_viewer_size(self.viewer).y 
+            # Create a video writer
+            #fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            fourcc = cv2.VideoWriter_fourcc(*'MP4V')
+            fps = 20.0
+            timestr = time.strftime("%Y%m%d_%H%M%S")
+            out_path = os.path.join('videos', f'{self.num_nodes}_nodes', f'{self.num_nodes}_{timestr}.mp4')
+            out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
+
+
+        
         while not self.gym.query_viewer_has_closed(self.viewer):
             # check for keyboard events
             for evt in self.gym.query_viewer_action_events(self.viewer):
@@ -509,6 +527,18 @@ class URDFVisualizer:
                 break
             else:
                 frame+=1
+                if self.args.record_video:
+                    # Capture a screenshot of the selected window
+                    if frame%(60//fps)==0:
+                        screenshot = pyautogui.screenshot(region=(left, top, width, height))
+                        f = np.array(screenshot)
+                        # Convert BGR to RGB format (OpenCV uses BGR)
+                        f = cv2.cvtColor(f, cv2.COLOR_BGR2RGB)
+                        # Write the frame to the video file
+                        out.write(f)  
+        # Release the video writer and close the window
+        if self.args.record_video:
+            out.release()
         self.destroy()
 
     def refresh(self):
@@ -529,6 +559,7 @@ if __name__ == "__main__":
             {"name": "--trunk_radius", "type": float, "default": 0.02, "help": "Radius of trunk"},
             {"name": "--temp_file", "type": str, "help": "Path to temp file"},
             {"name": "--mode", "type": str, "help": "Either virtual force or gripper contact"},
+            {"name": "--record_video", "type": bool, "default": False, "help": "Whether to save video"}
         ])
 
     # Deserialize the data from temp file using pickle

@@ -327,71 +327,79 @@ def get_quat_from_vec(vec, branch_vec, gripper_axis):
     quat = torch.stack((x,y,z, w), dim=-1)
     return quat
 
-def normalizer(graph_list, stats=None):
-    # Get keys of node features
-    node_feat_keys = graph_list[0].nodes[next(iter(graph_list[0].nodes))].keys()
-    # Get keys of edge features
-    edge_feat_keys = graph_list[0].edges[next(iter(graph_list[0].edges))].keys()
-    # Get keys of graph features
-    graph_feat_keys = graph_list[0].graph.keys()
+def axis_angle_to_quaternion(axis_angle: torch.Tensor) -> torch.Tensor:
+    """
+    Convert rotations given as axis/angle to quaternions.
 
-    if stats is None:
-        stats = {'node': {}, 'edge': {}, 'graph': {}}
-        for key in node_feat_keys:
-            data = []
-            for graph in graph_list:
-                for node_idx in graph.nodes:
-                    data.append(graph.nodes[node_idx][key])
-            mean = np.array(data, dtype=float).mean(axis=0)
-            std = np.array(data, dtype=float).std(axis=0)
-            stats['node'][key] = {'mean': mean, 'std': std}
-            for graph in graph_list:
-                for node_idx in graph.nodes:
-                    graph.nodes[node_idx][key] = ((graph.nodes[node_idx][key] - mean) / std).astype(np.float32)
+    Args:
+        axis_angle: Rotations given as a vector in axis angle form,
+            as a tensor of shape (..., 3), where the magnitude is
+            the angle turned anticlockwise in radians around the
+            vector's direction.
 
-            print(f'Node feature {key} mean: {mean} std: {std}')
-        
-        for key in edge_feat_keys:
-            data = []
-            for graph in graph_list:
-                for edge in graph.edges:
-                    data.append(graph.edges[edge][key])
-            mean = np.array(data, dtype=float).mean(axis=0)
-            std = np.array(data, dtype=float).std(axis=0)
-            stats['edge'][key] = {'mean': mean, 'std': std}
-            for graph in graph_list:
-                for edge in graph.edges:
-                    graph.edges[edge][key] = ((graph.edges[edge][key] - mean) / std).astype(np.float32)
-            print(f'Edge feature {key} mean: {mean} std: {std}')
-        
-        for key in graph_feat_keys:
-            data = []
-            for graph in graph_list:
-                data.append(graph.graph[key])
-            mean = np.array(data, dtype=float).mean(axis=0)
-            std = np.array(data, dtype=float).std(axis=0)
-            stats['graph'][key] = {'mean': mean, 'std': std}
-            for graph in graph_list:
-                graph.graph[key] = ((graph.graph[key] - mean) / std).astype(np.float32)
-            print(f'Graph feature {key} mean: {mean} std: {std}')
-        return graph_list, stats
+    Returns:
+        quaternions with real part first, as tensor of shape (..., 4).
+    """
+    angles = torch.norm(axis_angle, p=2, dim=-1, keepdim=True)
+    half_angles = angles * 0.5
+    eps = 1e-6
+    small_angles = angles.abs() < eps
+    sin_half_angles_over_angles = torch.empty_like(angles)
+    sin_half_angles_over_angles[~small_angles] = (
+        torch.sin(half_angles[~small_angles]) / angles[~small_angles]
+    )
+    # for x small, sin(x/2) is about x/2 - (x/2)^3/6
+    # so sin(x/2)/x is about 1/2 - (x*x)/48
+    sin_half_angles_over_angles[small_angles] = (
+        0.5 - (angles[small_angles] * angles[small_angles]) / 48
+    )
+    quaternions = torch.cat(
+        [torch.cos(half_angles), axis_angle * sin_half_angles_over_angles], dim=-1
+    )
+    return quaternions
 
-    else:
-        for key in node_feat_keys:
-            mean = stats['node'][key]['mean']
-            std = stats['node'][key]['std']
-            for graph in graph_list:
-                for node_idx in graph.nodes:
-                    graph.nodes[node_idx][key] = ((graph.nodes[node_idx][key] - mean) / std).astype(np.float32)
-        for key in edge_feat_keys:
-            mean = stats['edge'][key]['mean']
-            std = stats['edge'][key]['std']
-            for graph in graph_list:
-                for edge in graph.edges:
-                    graph.edges[edge][key] = ((graph.edges[edge][key] - mean) / std).astype(np.float32)
-        for key in graph_feat_keys:
-            mean = stats['graph'][key]['mean']
-            std = stats['graph'][key]['std']
-            for graph in graph_list:
-                graph.graph[key] = ((graph.graph[key] - mean) / std).astype(np.float32)
-        return graph_list, stats
+def quaternion_to_matrix(quaternions: torch.Tensor) -> torch.Tensor:
+    """
+    Convert rotations given as quaternions to rotation matrices.
+
+    Args:
+        quaternions: quaternions with real part first,
+            as tensor of shape (..., 4).
+
+    Returns:
+        Rotation matrices as tensor of shape (..., 3, 3).
+    """
+    r, i, j, k = torch.unbind(quaternions, -1)
+    # pyre-fixme[58]: `/` is not supported for operand types `float` and `Tensor`.
+    two_s = 2.0 / (quaternions * quaternions).sum(-1)
+
+    o = torch.stack(
+        (
+            1 - two_s * (j * j + k * k),
+            two_s * (i * j - k * r),
+            two_s * (i * k + j * r),
+            two_s * (i * j + k * r),
+            1 - two_s * (i * i + k * k),
+            two_s * (j * k - i * r),
+            two_s * (i * k - j * r),
+            two_s * (j * k + i * r),
+            1 - two_s * (i * i + j * j),
+        ),
+        -1,
+    )
+    return o.reshape(quaternions.shape[:-1] + (3, 3))
+
+def axis_angle_to_matrix(axis_angle: torch.Tensor) -> torch.Tensor:
+    """
+    Convert rotations given as axis/angle to rotation matrices.
+
+    Args:
+        axis_angle: Rotations given as a vector in axis angle form,
+            as a tensor of shape (..., 3), where the magnitude is
+            the angle turned anticlockwise in radians around the
+            vector's direction.
+
+    Returns:
+        Rotation matrices as tensor of shape (..., 3, 3).
+    """
+    return quaternion_to_matrix(axis_angle_to_quaternion(axis_angle))

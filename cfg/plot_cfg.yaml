@@ -1,12 +1,12 @@
-data_files: [
-              #'gripper_contact-baseline_random-randomized_target_False.pkl',
-              #'gripper_contact-baseline_greedy-randomized_target_False.pkl',
-              #'gripper_contact-baseline_None-randomized_target_False.pkl',
-              #'gripper_contact-baseline_greedy-randomized_target_True.pkl',
-              #'gripper_contact-baseline_root-randomized_target_True.pkl',
-              #'gripper_contact-baseline_None-randomized_target_True.pkl',
-              'gripper_contact-baseline_pointnet-randomized_target_False.pkl',
-              'gripper_contact-baseline_None-randomized_target_False.pkl',
+evaluation_data_files: [
+              'gripper_contact-policy_Random-randomized_target_False.pkl',
+              'gripper_contact-policy_Greedy-randomized_target_False.pkl',
+              'gripper_contact-policy_PointNet-randomized_target_False.pkl',
+              'gripper_contact-policy_GNN-randomized_target_False.pkl',
+            ]
+analysis_data_files: [
+              #'analysis_gripper_contact-policy_pointnet-randomized_target_False.pkl',
+              'analysis_gripper_contact-policy_gnn-randomized_target_False.pkl',
             ]
 
-y_axis_range: [0, 0.5]
+y_axis_range: [0, 0.3]
