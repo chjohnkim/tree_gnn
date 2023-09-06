@@ -4,7 +4,7 @@ device: cuda
 
 env:
   numEnvs: 1000
-  envSpacing: 1.5
+  envSpacing: 1
   episodeLength: 1 # John: Important for steady state
   beginActionFrame: 50
   trajectoryLength: 100

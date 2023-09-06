@@ -1,8 +1,12 @@
-evaluation_data_files: [
+cp_evaluation_data_files: [
               'gripper_contact-policy_Random-randomized_target_False.pkl',
               'gripper_contact-policy_Greedy-randomized_target_False.pkl',
               'gripper_contact-policy_PointNet-randomized_target_False.pkl',
               'gripper_contact-policy_GNN-randomized_target_False.pkl',
+            ]
+fm_evaluation_data_files: [
+              'FM_gripper_contact-policy_pointnet-randomized_target_False.pkl',
+              'FM_gripper_contact-policy_gnn-randomized_target_False.pkl',
             ]
 analysis_data_files: [
               #'analysis_gripper_contact-policy_pointnet-randomized_target_False.pkl',

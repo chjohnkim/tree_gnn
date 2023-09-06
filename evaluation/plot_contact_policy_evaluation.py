@@ -43,7 +43,7 @@ if __name__ == '__main__':
     if False:
         # Load plot data from pickle and plot max first
         fig, ax = plt.subplots()
-        for i, data_file in enumerate(cfg.evaluation_data_files):
+        for i, data_file in enumerate(cfg.cp_evaluation_data_files):
             with open(data_file, 'rb') as f:
                 data = pickle.load(f)
             num_nodes = data['num_nodes']
@@ -54,7 +54,7 @@ if __name__ == '__main__':
         ax.set_ylabel('Distance (m)')
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         legend_elements = [Line2D([0], [0], color='C0', label='Maximum distance of nodes between initial and target state')]
-        for i, data_file in enumerate(cfg.evaluation_data_files):
+        for i, data_file in enumerate(cfg.cp_evaluation_data_files):
             policy = data_file.split('-')[1].split('_')[1]
             legend_elements.append(Line2D([0], [0], color=f'C{i+1}', label=f'Maximum distance between predicted and target state: {policy}'))
         ax.legend(handles=legend_elements, loc='upper left')
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     if False:
         # Load plot data from pickle and plot mean second
         fig, ax = plt.subplots()
-        for i, data_file in enumerate(cfg.evaluation_data_files):
+        for i, data_file in enumerate(cfg.cp_evaluation_data_files):
             with open(data_file, 'rb') as f:
                 data = pickle.load(f)
             num_nodes = data['num_nodes']
@@ -77,7 +77,7 @@ if __name__ == '__main__':
         ax.set_ylabel('Distance (m)')
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         legend_elements = [Line2D([0], [0], color='C0', label='Mean distance of nodes between initial and target state')]
-        for i, data_file in enumerate(cfg.evaluation_data_files):
+        for i, data_file in enumerate(cfg.cp_evaluation_data_files):
             legend_elements.append(Line2D([0], [0], color=f'C{i+1}', label=f'\" predicted and target state: {data_file}'))
         ax.legend(handles=legend_elements, loc='upper left')
         # Set y axis limit
@@ -89,7 +89,7 @@ if __name__ == '__main__':
     fig_size = (14, 8)
     fig, ax = plt.subplots(figsize=fig_size)
     width = 0.15
-    for i, data_file in enumerate(cfg.evaluation_data_files):
+    for i, data_file in enumerate(cfg.cp_evaluation_data_files):
         with open(data_file, 'rb') as f:
             data = pickle.load(f)
         ind = data['num_nodes']
@@ -108,7 +108,7 @@ if __name__ == '__main__':
     ax.yaxis.label.set_fontweight('bold')  
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     legend_elements = [Line2D([0], [0], linewidth=5, color=tab20c_dark[0], label='Maximum node distance between initial & target state')]
-    for i, data_file in enumerate(cfg.evaluation_data_files):
+    for i, data_file in enumerate(cfg.cp_evaluation_data_files):
         policy = data_file.split('-')[1].split('_')[1]
         legend_elements.append(Line2D([0], [0], linewidth=5, color=tab20c_dark[i+1], label='Maximum node error between predicted & target state: ' + r'$\bf{ ' + policy + '}$'))
     ax.legend(handles=legend_elements, loc='upper left')
@@ -125,7 +125,7 @@ if __name__ == '__main__':
     # Plot mean and max bar plot
     fig, ax = plt.subplots(figsize=fig_size)
     width = 0.15
-    for i, data_file in enumerate(cfg.evaluation_data_files):
+    for i, data_file in enumerate(cfg.cp_evaluation_data_files):
         with open(data_file, 'rb') as f:
             data = pickle.load(f)
         ind = data['num_nodes']
@@ -144,7 +144,7 @@ if __name__ == '__main__':
     ax.yaxis.label.set_fontweight('bold')  
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     legend_elements = [Line2D([0], [0], linewidth=5, color=tab20c_dark[0], label='Mean node distance between initial & target state')]
-    for i, data_file in enumerate(cfg.evaluation_data_files):
+    for i, data_file in enumerate(cfg.cp_evaluation_data_files):
         policy = data_file.split('-')[1].split('_')[1]
         legend_elements.append(Line2D([0], [0], linewidth=5, color=tab20c_dark[i+1], label='Mean node error between predicted & target state: ' + r'$\bf{ ' + policy + '}$'))
     ax.legend(handles=legend_elements, loc='upper left')

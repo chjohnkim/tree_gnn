@@ -56,7 +56,7 @@ if __name__ == '__main__':
     model.load_state_dict(torch.load(cfg.forward_model_ckpt_path))
     criterion = torch.nn.MSELoss()
     
-    first_node_size = 8 # TODO: Make this a parameter in the config file
+    first_node_size = 10 # TODO: Make this a parameter in the config file
     num_nodes = np.arange(first_node_size,first_node_size+len(cfg.test_data_name))
     assert(len(num_nodes)==len(cfg.test_data_name))
     test_loss_list = []
@@ -102,6 +102,15 @@ if __name__ == '__main__':
     ax.set_ylim(0, 1.0)
     plt.xticks(num_nodes)
     plt.show()
+
+    # Save plot data to pickle
+    plot_data = {'max_distance_displacemnts_list': max_distance_displacemnts_list,
+                 'max_distance_errors_list': max_distance_errors_list,  
+                 'num_nodes': num_nodes}
+    out_name = os.path.join('evaluation', f'FM_{str(cfg.mode)}-policy_{str(cfg.policy)}-randomized_target_{str(cfg.randomize_target)}.pkl')
+    with open(out_name, 'wb') as f:
+        pickle.dump(plot_data, f)
+
 
 
     
