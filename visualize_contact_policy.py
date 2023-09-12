@@ -1,12 +1,12 @@
 import os
 from omegaconf import OmegaConf
 import pickle
-import utils
+from utils import utils
 import torch
 from model import GNNSimulator, HeuristicBaseline, PointNet
 import subprocess
 import tempfile
-import numpy as np 
+
 def visualize(model, data_loader, device, cfg):
     model.eval()
     with torch.no_grad():

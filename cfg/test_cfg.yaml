@@ -30,17 +30,28 @@ test_data_name:  [
                   'graph_list_test_30_nodes_1k.pkl',
                   ]
 # Pointnet
-#forward_model_ckpt_path: "runs/20230827_232920_PointNet/best_model.pt"
-#contact_policy_ckpt_path: "runs/20230828_220011_pointnet/best_model.pt"
+#forward_model_ckpt_path: "runs/final_model_weights/pointnet_forward_model.pt"
+#contact_policy_ckpt_path: "runs/final_model_weights/pointnet_contact_policy.pt"
 # GNN
-forward_model_ckpt_path: "runs/20230827_231059_GNN/best_model.pt"
-contact_policy_ckpt_path: "runs/20230828_210611_GNN/best_model.pt"
+forward_model_ckpt_path: "runs/final_model_weights/gnn_forward_model.pt"
+contact_policy_ckpt_path: "runs/final_model_weights/gnn_contact_policy.pt"
 
+# Ablation study
+ablation_study: 'no_edge_delta'
+#forward_model_ckpt_path: "runs/final_model_weights/ablation_ours.pt"
+#forward_model_ckpt_path: "runs/final_model_weights/ablation_partially_connected_5_layers.pt"
+#forward_model_ckpt_path: "runs/final_model_weights/ablation_partially_connected_10_layers.pt"
+#forward_model_ckpt_path: "runs/final_model_weights/ablation_partially_connected_15_layers.pt"
+#forward_model_ckpt_path: "runs/final_model_weights/ablation_partially_connected_20_layers.pt"
+#forward_model_ckpt_path: "runs/final_model_weights/ablation_no_stiffness.pt"
+#forward_model_ckpt_path: "runs/final_model_weights/ablation_no_parent2child.pt"
+#forward_model_ckpt_path: "runs/final_model_weights/ablation_no_edge_delta.pt"
+#forward_model_ckpt_path: "runs/final_model_weights/ablation_no_edge_attr.pt"
 
 model:
   hidden_size: 128
-  num_IN_layers: 1
+  num_IN_layers: 5
 test:
   batch_size: 64
   visualize: False
-
+  record_video: False

@@ -1,7 +1,6 @@
 from xml.dom import minidom
 import os
 import numpy as np
-import networkx as nx
 from scipy.spatial.transform import Rotation as R
 
 class URDFTreeGenerator(object):

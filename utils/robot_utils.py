@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from math_utils import quat_conjugate, quat_mul
+from .math_utils import quat_conjugate, quat_mul
 
 class RobotKinematics:
     def __init__(self, robot_name):

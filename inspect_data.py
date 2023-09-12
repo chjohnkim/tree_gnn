@@ -49,9 +49,9 @@ def visualize_graph(graph):
     for quiver_params in initial_parent2child_quiver_list:
         q1 = ax.quiver(quiver_params[0], quiver_params[1], quiver_params[2], quiver_params[3], quiver_params[4], quiver_params[5], color='r')
     for quiver_params in initial_child2parent_quiver_list:
-        q2 = ax.quiver(quiver_params[0], quiver_params[1], quiver_params[2], quiver_params[3], quiver_params[4], quiver_params[5], color='b')
+        q2 = ax.quiver(quiver_params[0], quiver_params[1], quiver_params[2], quiver_params[3], quiver_params[4], quiver_params[5], color='m')
     for quiver_params in final_parent2child_quiver_list:
-        q3 = ax.quiver(quiver_params[0], quiver_params[1], quiver_params[2], quiver_params[3], quiver_params[4], quiver_params[5], color='m')
+        q3 = ax.quiver(quiver_params[0], quiver_params[1], quiver_params[2], quiver_params[3], quiver_params[4], quiver_params[5], color='b')
     for quiver_params in final_child2parent_quiver_list:
         q4 = ax.quiver(quiver_params[0], quiver_params[1], quiver_params[2], quiver_params[3], quiver_params[4], quiver_params[5], color='c')
    
@@ -65,14 +65,14 @@ def visualize_graph(graph):
     ax.set_zlim(0, 1.0)
 
     # Set plot legend
-    legend_labels = ['Normalized Contact Force', 'Initial Parent2Child Edges', 'Initial Child2Parent Edges', 'Final Parent2Child Edges', 'Final Child2Parent Edges']
-    ax.legend([q0, q1, q2, q3, q4], legend_labels)
+    legend_labels = ['Normalized Contact Force', 'Initial Parent2Child Edges', 'Final Parent2Child Edges']
+    ax.legend([q0, q1, q3], legend_labels)
 
     plt.show()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--data_path', type=str, default='data/graph_list.pkl', help='path to data pkl file')
+    parser.add_argument('-d', '--data_path', type=str, default='data/gripper_contact/graph_list_test_30_nodes_1k.pkl', help='path to data pkl file')
     args = parser.parse_args()
     with open(args.data_path, 'rb') as f:
         graph_list = pickle.load(f)

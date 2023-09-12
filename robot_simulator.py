@@ -2,18 +2,18 @@ import os
 import sys
 import pickle
 import numpy as np
-from urdf_tree_generator import URDFTreeGenerator
+from utils.urdf_tree_generator import URDFTreeGenerator
 from isaacgym import gymapi, gymutil, gymtorch
 import torch
-import utils
+from utils import utils
 from copy import deepcopy
 import cv2
 import pyautogui
 import time
-import robot_utils
-import motion_planning_utils as mpu
+from utils import robot_utils
+from utils import motion_planning_utils as mpu
 from isaacgym.torch_utils import to_torch
-import math_utils
+from utils import math_utils
 
 class URDFVisualizer:
     def __init__(self, args, graph_initial, graph_final, graph_predicted, 
@@ -33,8 +33,11 @@ class URDFVisualizer:
         self.init_traj_length = 100
         self.buffer_length = 50
         self.trajectory_length = 100
-        self.settling_length = auto_close 
-        self.auto_close = auto_close
+        if args.record_video:
+            auto_close = 50
+        self.settling_length = auto_close
+
+        #self.auto_close = auto_close
         
 
         self.num_actors = 3
@@ -70,11 +73,11 @@ class URDFVisualizer:
     def initialize_robot(self):
         self.robot_kinematics = robot_utils.RobotKinematics('ur5')
         self.robot_asset_path = "assets/ur5_description/ur5.urdf"
-        self.ee_link_name = "wrist_3_link"
+        self.ee_link_name = "ee_base"
         # Initialize motion planner
         mp_robot = mpu.URDFAsset(os.path.join(self.asset_root, self.robot_asset_path), 
                                         pos=[0,0,0], rot=[0,0,0], base_link_name='base_link')
-        c_space = mpu.ObstacleCSpace(eps=1e-1)
+        c_space = mpu.ObstacleCSpace(eps=3e-1)
         c_space.add_robot(mp_robot)
 
         tree_urdf = URDFTreeGenerator(self.graph_initial[0], f'temp_tree_urdf', asset_path=self.asset_root)
@@ -88,7 +91,7 @@ class URDFVisualizer:
         self.robot_default_dof_pos = to_torch([(1/2)*np.pi, (-2/3)*np.pi, (4/5)*np.pi, (-1/7)*np.pi, (1/2)*np.pi, 0.0], device=self.device)
         self.robot_default_dof_pos = self.robot_default_dof_pos.repeat(self.num_envs, 1)
         # Default robot root state
-        self.robot_default_pos = to_torch([[0.5, 0.0, 0.1]], device=self.device)
+        self.robot_default_pos = to_torch([[-0.5, 0.0, 0.1]], device=self.device)
         self.robot_default_quat = to_torch([[0.0, 0.0, 0.0, 1.0]], device=self.device)
 
     def initialize_sim(self):
@@ -142,8 +145,8 @@ class URDFVisualizer:
             print("*** Failed to create viewer")
             quit()
         # position the camera
-        cam_pos = gymapi.Vec3(0.8, 0.8, 0.8)
-        cam_target = gymapi.Vec3(-1, -1, 0.3)
+        cam_pos = gymapi.Vec3(0.0, 1.2, 0.8)
+        cam_target = gymapi.Vec3(0, -1, 0.3)
         self.gym.viewer_camera_look_at(self.viewer, None, cam_pos, cam_target)
 
     def load_asset(self, asset_file):
@@ -215,16 +218,13 @@ class URDFVisualizer:
         # arm
         robot_dof_props["stiffness"].fill(40000.0)
         robot_dof_props["damping"].fill(40.0)
-        robot_dof_props["effort"].fill(800.0)
+        robot_dof_props["effort"].fill(400.0)
         robot_dof_props["lower"].fill(-np.pi*4)
         robot_dof_props["upper"].fill(np.pi*4)
 
         robot_link_dict = self.gym.get_asset_rigid_body_dict(robot_asset)
         print(robot_link_dict)
         self.robot_ee_index = robot_link_dict[self.ee_link_name]
-
-
-
 
         # create an array of DOF states that will be used to update the actors
         tree_num_dofs = self.gym.get_asset_dof_count(self.assets_initial[0])
@@ -311,7 +311,7 @@ class URDFVisualizer:
 
         _jacobian = self.gym.acquire_jacobian_tensor(self.sim, "robot")
         jacobian = gymtorch.wrap_tensor(_jacobian)
-        self.j_eef = jacobian[:, self.robot_ee_index-1, :, :]
+        self.j_eef = jacobian[:, self.robot_ee_index, :, :]
 
         self.dof_state = gymtorch.wrap_tensor(dof_state_tensor)
         self.rigid_body_state = gymtorch.wrap_tensor(rigid_body_tensor).view(self.num_envs, -1, 13)
@@ -380,13 +380,13 @@ class URDFVisualizer:
         contact_node_gt_geom = gymutil.WireframeSphereGeometry(0.02, 10, 10, gymapi.Transform(), color=(0, 1, 0))
         # variables to detect object penetration
         if self.args.record_video:
-            left, top, width, height = 470, 112, 840, 840 #self.gym.get_viewer_size(self.viewer).x, self.gym.get_viewer_size(self.viewer).y 
+            left, top, width, height = 470, 112, 1040, 840 #self.gym.get_viewer_size(self.viewer).x, self.gym.get_viewer_size(self.viewer).y 
             # Create a video writer
             #fourcc = cv2.VideoWriter_fourcc(*'XVID')
             fourcc = cv2.VideoWriter_fourcc(*'MP4V')
             fps = 20.0
             timestr = time.strftime("%Y%m%d_%H%M%S")
-            out_path = os.path.join('videos', f'{self.num_nodes}_nodes', f'{self.num_nodes}_{timestr}.mp4')
+            out_path = os.path.join('videos', 'robot', f'{self.num_nodes}_nodes', f'{self.num_nodes}_{timestr}.mp4')
             out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
 
 
@@ -474,6 +474,7 @@ class URDFVisualizer:
                         T_world_robot = math_utils.get_transform_from_pose(self.robot_default_pos, self.robot_default_quat)
                         T_world_ee = math_utils.get_transform_from_pose(self.ee_traj_pos, 
                                                                         self.ee_init_quat.unsqueeze(dim=1).repeat(1, self.trajectory_length, 1))
+                        T_world_ee[:, 0, :3, 3] = T_world_ee[:, 0, :3, 3] - 0.03*unit_force_vector # Fix due to difference in the two IK methods
                         T_robot_world = math_utils.transform_inverse(T_world_robot)
                         T_robot_ee = torch.matmul(T_robot_world.unsqueeze(1), T_world_ee).detach().cpu().numpy()
                         # Compute joint angles for end-effector trajectory using ee_traj_pos and ee_traj_quat
@@ -542,7 +543,11 @@ class URDFVisualizer:
                 num_lines = 1
                 self.gym.add_lines(self.viewer, self.envs[i], num_lines, line_vertices, line_color)
             '''    
-                
+            if frame==self.begin_action_frame//2:
+                asset_rb_handles_dict = self.asset_rb_handles_dict_list[i]
+                predicted_tree_rb_handles = list(asset_rb_handles_dict['predicted'].values())
+                initial_node_pos = self.rigid_body_state[i, predicted_tree_rb_handles, :3]
+
             
             if not self.headless:
                 # update the viewer
@@ -554,7 +559,11 @@ class URDFVisualizer:
             else: 
                 self.gym.poll_viewer_events(self.viewer)
 
-            if frame>self.begin_action_frame + self.trajectory_length + self.settling_length:
+            if frame>self.begin_action_frame \
+                + self.init_traj_length \
+                + self.buffer_length \
+                + self.trajectory_length \
+                + self.settling_length:
                 import json
                 # Compute the maximum node distance between the predicted and target tree
                 # and the maximum node displacement between the initial and target tree
@@ -562,12 +571,13 @@ class URDFVisualizer:
                 max_node_dist_errors = []
                 mean_node_displacements = []
                 mean_node_dist_errors = []
+                ranks = []
                 for i in range(self.num_envs):
                     asset_rb_handles_dict = self.asset_rb_handles_dict_list[i]
-                    initial_tree_rb_handles = list(asset_rb_handles_dict['initial'].values())
+                    #initial_tree_rb_handles = list(asset_rb_handles_dict['initial'].values())
                     predicted_tree_rb_handles = list(asset_rb_handles_dict['predicted'].values())
                     target_tree_rb_handles = list(asset_rb_handles_dict['final'].values())
-                    initial_node_pos = self.rigid_body_state[i, initial_tree_rb_handles, :3]
+                    #initial_node_pos = self.rigid_body_state[i, initial_tree_rb_handles, :3]
                     predicted_node_pos = self.rigid_body_state[i, predicted_tree_rb_handles, :3]
                     target_node_pos = self.rigid_body_state[i, target_tree_rb_handles, :3]
                     node_dist_error = torch.norm(predicted_node_pos-target_node_pos, dim=-1)
@@ -580,8 +590,10 @@ class URDFVisualizer:
                     mean_node_dist_error = torch.mean(node_dist_error).item()
                     mean_node_displacements.append(mean_node_displacement)
                     mean_node_dist_errors.append(mean_node_dist_error)
+                    ranks.append(rank)
                 data = {'max_node_displacement': max_node_displacements, 'max_node_dist_error': max_node_dist_errors,
-                        'mean_node_displacement': mean_node_displacements, 'mean_node_dist_error': mean_node_dist_errors}
+                        'mean_node_displacement': mean_node_displacements, 'mean_node_dist_error': mean_node_dist_errors,
+                        'rank': ranks}
                 serialized_data = json.dumps(data)
                 print("DATA_START")
                 print(serialized_data)
@@ -602,6 +614,9 @@ class URDFVisualizer:
         # Release the video writer and close the window
         if self.args.record_video:
             out.release()
+            print('Video saved at: ', out_path)
+            # rename the video file
+            os.rename(out_path, out_path.replace(f'{self.num_nodes}_{timestr}', f'N{self.num_nodes}_R{rank+1}_{timestr}'))
         self.destroy()
 
     def refresh(self):

@@ -1,16 +1,28 @@
 cp_evaluation_data_files: [
-              'gripper_contact-policy_Random-randomized_target_False.pkl',
-              'gripper_contact-policy_Greedy-randomized_target_False.pkl',
-              'gripper_contact-policy_PointNet-randomized_target_False.pkl',
-              'gripper_contact-policy_GNN-randomized_target_False.pkl',
+              'contact_policy_random.pkl',
+              'contact_policy_greedy.pkl',
+              'contact_policy_pointnet.pkl',
+              'contact_policy_gnn.pkl',
             ]
 fm_evaluation_data_files: [
-              'FM_gripper_contact-policy_pointnet-randomized_target_False.pkl',
-              'FM_gripper_contact-policy_gnn-randomized_target_False.pkl',
+              'forward_model_pointnet.pkl',
+              'forward_model_gnn.pkl',
             ]
 analysis_data_files: [
-              #'analysis_gripper_contact-policy_pointnet-randomized_target_False.pkl',
-              'analysis_gripper_contact-policy_gnn-randomized_target_False.pkl',
+              'node_analysis_gnn.pkl',
             ]
-
+robot_evaluation_data_files: [
+              'robot_policy.pkl',
+            ]
+ablation_study_data_files: [
+              'ablation-partially_connected_5_layers.pkl',
+              'ablation-partially_connected_10_layers.pkl',
+              'ablation-partially_connected_15_layers.pkl',
+              'ablation-partially_connected_20_layers.pkl',
+              'ablation-ours.pkl',
+              'ablation-no_parent2child.pkl',
+              'ablation-no_stiffness.pkl',
+              'ablation-no_edge_delta.pkl',
+              'ablation-no_edge_attr.pkl',
+            ]
 y_axis_range: [0, 0.3]

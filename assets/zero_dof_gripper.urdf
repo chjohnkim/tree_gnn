@@ -1,0 +1,141 @@
+<?xml version="1.0"?>
+<robot name="materials">
+
+  <material name="blue">
+    <color rgba="0 0 0.8 1"/>
+  </material>
+
+  <material name="blue">
+    <color rgba="0 0 0.8 1"/>
+  </material>
+
+  <material name="black">
+    <color rgba="0 0 0 1"/>
+  </material>
+
+  <material name="grey">
+    <color rgba="0.7 0.7 0.7 1"/>
+  </material>
+
+  <material name="white">
+    <color rgba="1 1 1 1"/>
+  </material>
+
+  <material name="light_blue">
+    <color rgba="0.678 0.847 0.902 1"/>
+  </material>
+
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <cylinder length="0.10" radius="0.01"/>
+      </geometry>
+      <origin rpy="1.57075 0 0" xyz="0 0 0"/>
+      <material name="light_blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.10" radius="0.01"/>
+      </geometry>
+      <origin rpy="1.57075 0 0" xyz="0 0 0"/>
+    </collision>
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <link name="wrist">
+    <visual>
+      <geometry>
+        <cylinder length="0.03" radius="0.02"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <material name="light_blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.03" radius="0.02"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="base_to_wrist" type="fixed">
+    <parent link="base_link"/>
+    <child link="wrist"/>
+    <origin xyz="0 0 -0.025"/>
+  </joint>
+
+
+  <link name="right_finger">
+    <visual>
+      <geometry>
+        <cylinder length="0.025" radius="0.01"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.0"/>
+      <material name="light_blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.025" radius="0.01"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0.0"/>
+    </collision>
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="base_to_right_finger" type="fixed">
+    <parent link="base_link"/>
+    <child link="right_finger"/>
+    <origin xyz="0 -0.04 0.0125"/>
+  </joint>
+
+  <link name="left_finger">
+    <visual>
+      <geometry>
+        <cylinder length="0.025" radius="0.01"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <material name="light_blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.025" radius="0.01"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="base_to_left_finger" type="fixed">
+    <parent link="base_link"/>
+    <child link="left_finger"/>
+    <origin xyz="0 0.04 0.0125"/>
+  </joint>
+
+<!-- Make a linear slider dof to avoid interpentration -->
+  <link name="base">
+    <inertial>
+      <mass value="0.000001"/>
+      <inertia ixx="0.000001" ixy="0.0" ixz="0.0" iyy="0.000001" iyz="0.0" izz="0.000001"/>
+    </inertial>
+  </link>
+  <joint name="base_to_base_link" type="prismatic">
+    <parent link="base"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="1000" lower="0.0" upper="1.0" velocity="0.1"/>
+  </joint>
+</robot>

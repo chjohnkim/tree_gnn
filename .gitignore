@@ -1,3 +1,10 @@
+# Custom
+wandb/
+arxiv/
+runs/
+videos/
+*.pkl
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

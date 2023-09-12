@@ -2,10 +2,10 @@ import os
 import sys
 import pickle
 import numpy as np
-from urdf_tree_generator import URDFTreeGenerator
+from utils.urdf_tree_generator import URDFTreeGenerator
 from isaacgym import gymapi, gymutil, gymtorch
 import torch
-import utils
+from utils import utils
 from copy import deepcopy
 import cv2
 import pyautogui

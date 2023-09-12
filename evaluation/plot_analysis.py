@@ -44,7 +44,7 @@ if __name__ == '__main__':
         max_dist_errors = data['max_dist_errors']
 
         # Make violin plot of node selection probabilities
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 10))
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6))
         ax1.violinplot(node_probs, node_order, showmeans=True, showextrema=False, showmedians=False)
         #ax1.set_xlabel('Node confidence rank')
         ax1.set_ylabel('Node confidence score')
@@ -57,15 +57,15 @@ if __name__ == '__main__':
         ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
         legend_elements = [Line2D([0], [0], color=tab20c_light[-1], linewidth=5, label='Node confidence score distribution'),
                         Line2D([0], [0], color=tab20c_dark[-1], linewidth=2, label='Mean node confidence score')]
-        ax1.legend(handles=legend_elements, loc='upper right')
+        #ax1.legend(handles=legend_elements, loc='upper right')
         ax1.set_xticks(node_order)
         ax1.set_xticklabels(node_order)
         # Add some space between ax1 and ax2
         fig.subplots_adjust(hspace=0.3)
 
         #fig, ax = plt.subplots()
-        ax2.bar(node_order, np.mean(max_dist_errors, axis=1), width=0.25, color=tab20c_light[-1])      
-        ax2.plot(node_order, np.mean(mean_dist_errors, axis=1), color=tab20c_dark[-1], linestyle='None', marker='_', markersize=10, markeredgewidth=2)    
+        ax2.bar(node_order, np.mean(max_dist_errors, axis=1), width=0.5, color=tab20c_light[-1])      
+        ax2.plot(node_order, np.mean(mean_dist_errors, axis=1), color=tab20c_dark[-1], linestyle='None', marker='_', markersize=15, markeredgewidth=2)    
         #ax.violinplot(max_dist_errors, node_order, showmeans=True, showextrema=False, showmedians=False)
         #ax.violinplot(mean_dist_errors, node_order, showmeans=True, showextrema=False, showmedians=False)
         ax2.set_xlabel('Node confidence rank')
@@ -77,10 +77,12 @@ if __name__ == '__main__':
         ax2.xaxis.set_major_locator(MaxNLocator(integer=True))
         legend_elements = [Line2D([0], [0], color=tab20c_light[-1], linewidth=5, label='Maximum node error between predicted and target state'),
                         Line2D([0], [0], color=tab20c_dark[-1], linewidth=2, label='Mean node error between predicted and target state')]
-        ax2.legend(handles=legend_elements, loc='upper left')
+        #ax2.legend(handles=legend_elements, loc='upper left')
         ax2.set_xticks(node_order)
         ax2.set_xticklabels(node_order)
         ax2.set_ylim(0, 0.2)
+        # Set y axis ticks to increment by 0.05
+        ax2.yaxis.set_ticks(np.arange(0, 0.2, 0.05))
         plt.show()
 
     # Make the two plots above side by side

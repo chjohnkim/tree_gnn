@@ -21,7 +21,8 @@ import os
 import numpy as np
 import torch
 from copy import deepcopy
-import utils
+from utils import utils
+from utils import math_utils
 from omegaconf import OmegaConf
 import networkx as nx
 
@@ -35,7 +36,6 @@ class DataCollectionGym:
         self.begin_action_frame = self.cfg["env"]["beginActionFrame"]
         self.trajectory_length = self.cfg["env"]["trajectoryLength"]
         self.settling_length = self.cfg["env"]["settlingLength"]
-        self.visualize_actions = False #self.cfg["env"]["visualizeActions"] # For visualizing target node and force vector
         # Load asset information
         self.asset_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), self.cfg["env"]["asset"]["assetRoot"])
         tree_asset_path = self.cfg["env"]["asset"]["assetPathTrees"]
@@ -356,7 +356,7 @@ class DataCollectionGym:
                 rotation_axis_norm = rotation_axis/torch.linalg.norm(rotation_axis, dim=-1, keepdim=True)
                 axis_angle = rotation_axis_norm * random_tilt_angle.unsqueeze(-1)
                 # Compute rotation matrix
-                rotation_matrix = utils.axis_angle_to_matrix(axis_angle)
+                rotation_matrix = math_utils.axis_angle_to_matrix(axis_angle)
                 # Rotate trajectory vector
                 trajectory_vector = torch.bmm(rotation_matrix, trajectory_vector.unsqueeze(-1)).squeeze(-1)
                 # Normalize trajectory vector

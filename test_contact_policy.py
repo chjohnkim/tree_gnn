@@ -1,7 +1,7 @@
 import os
 from omegaconf import OmegaConf
 import pickle
-import utils
+from utils import utils
 from tqdm import tqdm
 import torch
 from model import GNNSimulator, PointNet

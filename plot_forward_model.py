@@ -1,7 +1,7 @@
 import os
 from omegaconf import OmegaConf
 import pickle
-import utils
+from utils import utils
 import torch
 from model import GNNSimulator, PointNet
 import matplotlib.pyplot as plt
@@ -108,6 +108,7 @@ if __name__ == '__main__':
                  'max_distance_errors_list': max_distance_errors_list,  
                  'num_nodes': num_nodes}
     out_name = os.path.join('evaluation', f'FM_{str(cfg.mode)}-policy_{str(cfg.policy)}-randomized_target_{str(cfg.randomize_target)}.pkl')
+    #out_name = os.path.join('evaluation', f'FM_ablation_{str(cfg.ablation_study)}-policy_{str(cfg.policy)}-randomized_target_{str(cfg.randomize_target)}.pkl')
     with open(out_name, 'wb') as f:
         pickle.dump(plot_data, f)
 

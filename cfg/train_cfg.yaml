@@ -1,9 +1,9 @@
 # used to create the object
-name: PointNet_CP
+name: final_gnn_architecture
 device: cuda
 mode: 'gripper_contact' # virtual_force or gripper_contact
-policy: 'pointnet' # random, greedy, root, pointnet, or gnn
-fully_connected: False
+policy: 'gnn' # random, greedy, root, pointnet, or gnn
+fully_connected: True
 data_root: "data"
 train_data_name: [
                   "graph_list_11_nodes_6k.pkl",
@@ -21,12 +21,12 @@ test_data_name:  [
                   "graph_list_20_nodes_1k.pkl",
                   ]
 train:
-  epochs: 10000000
+  epochs: 1000000
   batch_size: 128
   learning_rate: 1e-3
   lam: 0.01
 model:
   hidden_size: 128
-  num_IN_layers: 1
+  num_IN_layers: 5
 logging:
   wandb: True

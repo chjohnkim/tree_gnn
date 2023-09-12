@@ -1,7 +1,7 @@
 import os
 from omegaconf import OmegaConf
 import pickle
-import utils
+from utils import utils
 import torch
 from model import GNNSimulator, HeuristicBaseline, PointNet
 import subprocess
@@ -50,7 +50,10 @@ def visualize(model, data_loader, device, cfg):
             with tempfile.NamedTemporaryFile(delete=True) as temp_file:
                 temp_file.write(serialized_data)
                 # Launch URDF_visualizer.py and pass the temporary file name as argument
-                subprocess.run(['python', 'robot_simulator.py', '--temp_file', temp_file.name])
+                if cfg.test.record_video:
+                    subprocess.run(['python', 'robot_simulator.py', '--temp_file', temp_file.name, '--record_video', 'True'])
+                else:
+                    subprocess.run(['python', 'robot_simulator.py', '--temp_file', temp_file.name])
             # Clean up the temporary file
             temp_file.close()
 
@@ -83,7 +86,7 @@ if __name__ == '__main__':
         test_graph_list = utils.preprocess_graphs_to_fully_connected(test_graph_list)
     else:
         test_graph_list = utils.preprocess_graphs(test_graph_list)
-    test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=1, shuffle=True)
+    test_loader = utils.nx_to_pyg_dataloader(test_graph_list, batch_size=1, shuffle=False)
     visualize(model, test_loader, device, cfg)
         
 

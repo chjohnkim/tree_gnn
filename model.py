@@ -20,9 +20,7 @@ class MLP(torch.nn.Module):
             x = layer(x)
         return x
 
-class InteractionNetwork(MessagePassing):
-    """Interaction Network as proposed in this paper: 
-    https://proceedings.neurips.cc/paper/2016/hash/3147da8ab4a0437c15ef51a5cc7f2dc4-Abstract.html"""
+class Graph2GraphModule(MessagePassing):
     def __init__(self, hidden_size, layers):
         super().__init__()
         self.lin_edge = MLP(hidden_size * 3+3, hidden_size, hidden_size, layers)
@@ -54,63 +52,6 @@ class InteractionNetwork(MessagePassing):
         out = torch_scatter.scatter(inputs, index, dim=self.node_dim, dim_size=dim_size, reduce="sum")
         return (inputs, out)
 
-
-class _GNNSimulator(torch.nn.Module):
-    """Graph Network-based Simulators(GNS)"""
-    def __init__(
-        self,
-        hidden_size,
-        num_IN_layers, # number of GNN layers
-        forward_model,
-    ):
-        super().__init__()
-        self.forward_model = forward_model
-        self.hidden_size = hidden_size
-        if self.forward_model:
-            self.node_in = MLP(1, hidden_size, hidden_size, 3) 
-        else:
-            self.node_in = MLP(3, hidden_size, hidden_size, 3) 
-            self.node_selector = MLP(hidden_size, hidden_size, 1, 3)         
-        self.edge_in = MLP(7, hidden_size, hidden_size, 3) 
-        self.node_action = MLP(hidden_size, hidden_size, 3, 3) 
-
-        self.num_IN_layers = num_IN_layers
-        self.IN_layers = torch.nn.ModuleList([InteractionNetwork(
-            hidden_size, 3
-        ) for _ in range(num_IN_layers)])
-
-    def forward(self, data):
-        if self.forward_model:
-            x = data.contact_node.unsqueeze(-1).float()
-            graph_feature = data.contact_force
-        else:
-            x = data.final_position - data.initial_position
-            graph_feature = torch.zeros_like(data.contact_force)
-
-        edge_attr = torch.cat((
-                            data.initial_edge_delta, 
-                            data.length.unsqueeze(-1),
-                            data.parent2child.unsqueeze(-1),
-                            data.branch.unsqueeze(-1),
-                            data.stiffness.unsqueeze(-1),                            
-                            ), dim=-1).float()
-        node_feature = self.node_in(x)
-        edge_feature = self.edge_in(edge_attr)
-
-        # stack of GNN layers
-        for i in range(self.num_IN_layers):
-            node_feature, edge_feature = self.IN_layers[i](x=node_feature, 
-                                                        edge_index=data.edge_index, 
-                                                        edge_feature=edge_feature, 
-                                                        graph_feature=graph_feature, 
-                                                        batch=data.batch)
-        action = self.node_action(node_feature)
-        if self.forward_model:
-            return action
-        else:        
-            node_selection_logits = self.node_selector(node_feature)
-            return node_selection_logits.flatten(), action
-
 class GNNSimulator(torch.nn.Module):
     """Graph Network-based Simulators(GNS)"""
     def __init__(
@@ -127,11 +68,11 @@ class GNNSimulator(torch.nn.Module):
         else:
             self.node_in = MLP(3, hidden_size, hidden_size, 3) 
             self.node_selector = MLP(hidden_size, hidden_size, 1, 3)         
-        self.edge_in = MLP(6, hidden_size, hidden_size, 3) 
+        self.edge_in = MLP(5, hidden_size, hidden_size, 3) 
         self.node_action = MLP(hidden_size, hidden_size, 3, 3) 
 
         self.num_IN_layers = num_IN_layers
-        self.IN_layers = torch.nn.ModuleList([InteractionNetwork(
+        self.IN_layers = torch.nn.ModuleList([Graph2GraphModule(
             hidden_size, 3
         ) for _ in range(num_IN_layers)])
 
@@ -144,10 +85,11 @@ class GNNSimulator(torch.nn.Module):
             graph_feature = torch.zeros_like(data.contact_force)
 
         edge_attr = torch.cat((
+                            #####torch.zeros_like(data.length.unsqueeze(-1)),
                             data.initial_edge_delta, 
-                            data.length.unsqueeze(-1),
+                            #####data.length.unsqueeze(-1),
                             data.parent2child.unsqueeze(-1),
-                            ###data.branch.unsqueeze(-1),
+                            #####data.branch.unsqueeze(-1),
                             data.stiffness.unsqueeze(-1),                            
                             ), dim=-1).float()
         node_feature = self.node_in(x)
@@ -256,7 +198,3 @@ class HeuristicBaseline(torch.nn.Module):
             # OPTION 4: Always select the root node as the contact node. This is only for random target mode
             node_selection_onehot = data.contact_node
         return node_selection_onehot, contact_trajectory
-
-if __name__=='__main__':
-    simulator = GNNSimulator()
-    print(simulator)

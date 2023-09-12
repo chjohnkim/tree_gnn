@@ -1,4 +1,3 @@
-import os
 from omegaconf import OmegaConf
 import pickle
 import matplotlib.pyplot as plt
@@ -7,9 +6,6 @@ from matplotlib.lines import Line2D
 import numpy as np
 
 # Set default color palette for bar plots
-
-
-
 tab20c = [
 (0.4549019607843137, 0.7686274509803922, 0.4627450980392157),       
 (0.6196078431372549, 0.6039215686274509, 0.7843137254901961), 
@@ -109,7 +105,7 @@ if __name__ == '__main__':
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     legend_elements = [Line2D([0], [0], linewidth=5, color=tab20c_dark[0], label='Maximum node distance between initial & target state')]
     for i, data_file in enumerate(cfg.fm_evaluation_data_files):
-        policy = data_file.split('-')[1].split('_')[1]
+        policy = data_file.split('_')[2]
         legend_elements.append(Line2D([0], [0], linewidth=5, color=tab20c_dark[i+1], label='Maximum node error between predicted & target state: ' + r'$\bf{ ' + policy + '}$'))
     ax.legend(handles=legend_elements, loc='upper left')
     # Set y axis limit
