@@ -1,4 +1,3 @@
-import os
 from omegaconf import OmegaConf
 import pickle
 import matplotlib.pyplot as plt

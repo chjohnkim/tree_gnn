@@ -6,7 +6,6 @@ import torch
 from model import GNNSimulator, HeuristicBaseline, PointNet
 import subprocess
 import tempfile
-import numpy as np 
 
 def visualize(model, data_loader, device, cfg):
     model.eval()

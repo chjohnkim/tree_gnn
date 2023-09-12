@@ -1,9 +1,7 @@
-import os
 from omegaconf import OmegaConf
 import pickle
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
-from matplotlib.lines import Line2D
 import numpy as np
 
 # Set default color palette for bar plots
