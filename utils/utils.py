@@ -177,8 +177,12 @@ def set_random_target_configuration(graph_list):
                 g_new.nodes[node_idx]['final_position'] = g.nodes[node_idx]['initial_position']
             # Set the contact_node to be node 0
             g_new.nodes[node_idx]['contact_node'] = 1 if node_idx == random_root_node else 0
+        for edge in g.edges:
+            g_new.edges[edge]['final_edge_delta'] = g_new.nodes[edge[1]]['final_position'] - g_new.nodes[edge[0]]['final_position']
+            g_new.edges[edge]['final_edge_delta'] = g_new.edges[edge]['final_edge_delta'].astype(np.float32)
         # Set contact force to be 0
         g_new.graph['contact_force'] = np.zeros((3,)).astype(np.float32)
+
     return graph_list_new
 
 def from_networkx(

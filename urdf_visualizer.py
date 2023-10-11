@@ -346,7 +346,7 @@ class URDFVisualizer:
         rb_force_tensor = torch.zeros((self.num_envs, self.num_rigid_bodies, 3), device=self.device, dtype=torch.float)
         # Initialize wireframe sphere geometry for visualizing nodes
         contact_node_geom = gymutil.WireframeSphereGeometry(0.025, 10, 10, gymapi.Transform(), color=(1, 0, 0))
-        contact_node_gt_geom = gymutil.WireframeSphereGeometry(0.02, 10, 10, gymapi.Transform(), color=(0, 1, 0))
+        contact_node_gt_geom = gymutil.WireframeSphereGeometry(0.02, 10, 10, gymapi.Transform(), color=(1, 0, 1))
         # variables to detect object penetration
         #begin_action_frame = 20
         #trajectory_num_waypoints = 100 if self.auto_close==np.inf else self.auto_close-begin_action_frame
@@ -360,6 +360,9 @@ class URDFVisualizer:
             fourcc = cv2.VideoWriter_fourcc(*'MP4V')
             fps = 20.0
             timestr = time.strftime("%Y%m%d_%H%M%S")
+            # Create folder if it doesn't exist
+            if not os.path.exists(os.path.join('videos', f'{self.num_nodes}_nodes')):
+                os.makedirs(os.path.join('videos', f'{self.num_nodes}_nodes'))
             out_path = os.path.join('videos', f'{self.num_nodes}_nodes', f'{self.num_nodes}_{timestr}.mp4')
             out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
 
@@ -437,7 +440,7 @@ class URDFVisualizer:
                 # Visualize GT contact force
                 rb_force_scaled = (self.contact_force_gt[i]*visual_scaling_factor).flatten().detach().cpu().numpy()
                 line_vertices = np.stack((contact_node_gt_pos.detach().cpu().numpy(), contact_node_gt_pos.detach().cpu().numpy() + rb_force_scaled), axis=0)
-                line_color = [0,1,0] 
+                line_color = [1,0,1] 
                 num_lines = 1
                 self.gym.add_lines(self.viewer, self.envs[i], num_lines, line_vertices, line_color)
 
