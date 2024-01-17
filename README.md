@@ -17,7 +17,7 @@ The goal for this project is to learn the complex physics model of trees. More s
 - wandb 
 
 ## 2. Downloading the Dataset
-The dataset for training the forward model and contact policy can be downloaded from this [link]().
+The dataset for training the forward model and contact policy can be downloaded from this [link](https://drive.google.com/drive/folders/1R2wOhUQV8XjORfNR_Q-nOLRTagR9kz3S?usp=drive_link).
 
 ## 3. Training and Testing 
 To train a model, edit ```cfg/train_cfg.yaml``` based on where your dataset is and what model you are training. Then train your model by running one of the following scripts:
